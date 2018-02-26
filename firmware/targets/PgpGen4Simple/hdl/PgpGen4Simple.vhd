@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-02-23
+-- Last update: 2018-02-25
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -434,7 +434,7 @@ begin
      end generate;
 
      U_Mig2Pcie : entity work.MigToPcieWrapper
-       generic map ( NAPP_G           => 1,
+       generic map ( NAPP_G           => 2,
                      AXIL_BASE_ADDR_G => x"00800000" )
        port map ( axiClk         => clk200(i),
                   axiRst         => rst200(i),

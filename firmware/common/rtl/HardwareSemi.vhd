@@ -2,7 +2,7 @@
 -- File       : HardwareSemi.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2018-02-15
+-- Last update: 2018-02-25
 -------------------------------------------------------------------------------
 -- Description: HardwareSemi File
 -------------------------------------------------------------------------------
@@ -69,7 +69,7 @@ end HardwareSemi;
 architecture mapping of HardwareSemi is
 
    constant NUM_LANES_C       : natural := 4;
-   constant NUM_AXI_MASTERS_C : natural := 1+NUM_LANES_C;
+   constant NUM_AXI_MASTERS_C : natural := 2;
 
    constant PGP_INDEX_C     : natural := 0;
    constant SIM_INDEX_C     : natural := 1;

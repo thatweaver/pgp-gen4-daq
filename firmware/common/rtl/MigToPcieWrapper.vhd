@@ -189,6 +189,7 @@ architecture mapping of MigToPcieWrapper is
     writeSlaves    : AxiStreamSlaveArray (LANES_G-1 downto 0); -- status stream
     wrBaseAddr     : Slv64Array          (NAPP_C downto 0);
     wrIndex        : Slv12Array          (NAPP_C downto 0);
+    loopMode       : slv                 (NAPP_C downto 0);
     axiBusy        : slv                 (LANES_G-1 downto 0);
     axiWriteMaster : AxiWriteMasterArray (LANES_G-1 downto 0); -- Descriptor
     -- Diagnostics control
@@ -221,6 +222,7 @@ architecture mapping of MigToPcieWrapper is
     writeSlaves    => (others=>AXI_STREAM_SLAVE_INIT_C),
     wrBaseAddr     => (others=>(others=>'0')),
     wrIndex        => (others=>(others=>'0')),
+    loopMode       => (others=>'0'),
     axiBusy        => (others=>'0'),
     axiWriteMaster => (others=>AXI_WRITE_MASTER_INIT_C),
     monEnable      => '0',
@@ -566,6 +568,8 @@ begin
         axiSlaveRegisterR(regCon, regAddr,16, dcountWriteDesc(i));
         regAddr := regAddr + 4;
         axiSlaveRegisterR(regCon, regAddr, 0, r.wrIndex(i));
+        regAddr := regAddr + 4;
+        axiSlaveRegister (regCon, regAddr, 0, v.loopMode(i));
       end loop;
 
       for i in 0 to LANES_G-1 loop
@@ -583,7 +587,7 @@ begin
         axiSlaveRegisterR(regCon, regAddr,30, s2mm_err(i));
         axiSlaveRegisterR(regCon, regAddr,31, migStatus(i).memReady);
       end loop;
-      
+
       -- End transaction block
       axiSlaveDefault(regCon, v.axilWriteSlave, v.axilReadSlave, AXI_ERROR_RESP_G);
 
@@ -635,6 +639,11 @@ begin
         v.wrDescDin(43 downto 20) := '0' & doutTransfer(i);
         v.wrDescDin(19 downto  0) := doutRamAddr(app)(59 downto 40);
         v.wrDesc   (i) := '1';
+
+        if r.loopMode(app) = '1' then
+          v.fifoDin        := doutRamAddr(app);
+          v.wrRamAddr(app) := '1';
+        end if;
       end if;
 
       for j in 0 to LANES_G-1 loop
