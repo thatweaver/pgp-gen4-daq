@@ -2,7 +2,7 @@
 -- File       : PgpLaneRx.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2017-11-16
+-- Last update: 2018-02-28
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -54,6 +54,9 @@ architecture mapping of PgpLaneRx is
       return retConf;
    end function;
 
+   signal intPgpRxMasters : AxiStreamMasterArray(NUM_VC_G-1 downto 0);
+   signal intPgpRxCtrl    : AxiStreamCtrlArray  (NUM_VC_G-1 downto 0);
+
    signal rxMasters : AxiStreamMasterArray(NUM_VC_G-1 downto 0);
    signal rxSlaves  : AxiStreamSlaveArray(NUM_VC_G-1 downto 0);
 
@@ -64,6 +67,19 @@ begin
 
    GEN_VEC :
    for i in NUM_VC_G-1 downto 0 generate
+
+      --
+      --  Should never need to assert RxCtrl
+      --    If we do, dump packet and assert eofe
+      --
+      PGP_FLOW : entity work.AxiStreamFlow
+         port map (
+           clk         => pgpClk,
+           rst         => pgpRst,
+           sAxisMaster => pgpRxMasters   (i),
+           sAxisCtrl   => pgpRxCtrl      (i),
+           mAxisMaster => intPgpRxMasters(i),
+           mAxisCtrl   => intPgpRxCtrl   (i) );
 
       PGP_FIFO : entity work.AxiStreamFifoV2
          generic map (
@@ -79,7 +95,7 @@ begin
             GEN_SYNC_FIFO_G     => true,
             FIFO_ADDR_WIDTH_G   => 10,
             FIFO_FIXED_THRESH_G => true,
-            FIFO_PAUSE_THRESH_G => 512,
+            FIFO_PAUSE_THRESH_G => 1020,
             -- AXI Stream Port Configurations
             SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
             MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
@@ -87,8 +103,8 @@ begin
             -- Slave Port
             sAxisClk    => pgpClk,
             sAxisRst    => pgpRst,
-            sAxisMaster => pgpRxMasters(i),
-            sAxisCtrl   => pgpRxCtrl(i),
+            sAxisMaster => intPgpRxMasters(i),
+            sAxisCtrl   => intPgpRxCtrl   (i),
             -- Master Port
             mAxisClk    => pgpClk,
             mAxisRst    => pgpRst,

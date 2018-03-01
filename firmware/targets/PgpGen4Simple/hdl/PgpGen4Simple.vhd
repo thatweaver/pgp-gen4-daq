@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-02-25
+-- Last update: 2018-02-28
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -104,11 +104,14 @@ architecture top_level of PgpGen4Simple is
    signal sysRsts    : slv(1 downto 0);
    signal clk200     : slv(1 downto 0);
    signal rst200     : slv(1 downto 0);
+   signal irst200    : slv(1 downto 0);
+   signal urst200    : slv(1 downto 0);
+   signal userReset  : slv(1 downto 0);
    signal userClock  : sl;
    signal userClk156 : sl;
    signal userSwDip  : slv(3 downto 0);
    signal userLed    : slv(7 downto 0);
-
+   
    signal qsfpRstL     : slv(1 downto 0);
    signal qsfpLpMode   : slv(1 downto 0);
    signal qsfpModSelL  : slv(1 downto 0);
@@ -292,6 +295,13 @@ begin
          I => mmcmRstOut(i)(0),
          O => rst200(i));
 
+     irst200(i) <= rst200(i) or userReset(i);
+     -- Forcing BUFG for reset that's used everywhere      
+     U_BUFGU : BUFG
+       port map (
+         I => irst200(i),
+         O => urst200(i));
+     
      U_MMCM : entity work.ClockManagerUltraScale
        generic map ( INPUT_BUFG_G       => false,
                      NUM_CLOCKS_G       => 2,
@@ -415,15 +425,14 @@ begin
      GEN_HWDMA : for j in 4*i+0 to 4*i+3 generate
        U_HwDma : entity work.AppToMigWrapper
          generic map ( AXI_STREAM_CONFIG_G => axiStreamConfig,
-                       AXI_BASE_ADDR_G     => ite((i mod 2)=0,x"00000000",x"80000000"),
-                       DEBUG_G             => ite(j<3, false, true) )
+                       AXI_BASE_ADDR_G     => (toSlv(j,1) & toSlv(0,31)) )
          port map ( sAxisClk        => hwClks         (j),
                     sAxisRst        => hwRsts         (j),
                     sAxisMaster     => hwIbMasters    (j),
                     sAxisSlave      => hwIbSlaves     (j),
                     sPause          => hwIbAlmostFull (j),
                     mAxiClk         => clk200     (i),
-                    mAxiRst         => rst200     (i),
+                    mAxiRst         => urst200    (i),
                     mAxiWriteMaster => memWriteMasters(j),
                     mAxiWriteSlave  => memWriteSlaves (j),
                     dscWriteMaster  => dscMasters     (j),
@@ -434,10 +443,11 @@ begin
      end generate;
 
      U_Mig2Pcie : entity work.MigToPcieWrapper
-       generic map ( NAPP_G           => 2,
+       generic map ( NAPP_G           => 4,
                      AXIL_BASE_ADDR_G => x"00800000" )
        port map ( axiClk         => clk200(i),
                   axiRst         => rst200(i),
+                  usrRst         => userReset(i),
                   axiReadMasters => memReadMasters(4*i+3 downto 4*i),
                   axiReadSlaves  => memReadSlaves (4*i+3 downto 4*i),
                   dscReadMasters => dscMasters    (4*i+3 downto 4*i),
@@ -459,7 +469,7 @@ begin
     port map ( axiReady        => memReady(0),
                --
                axiClk          => clk200         (0),
-               axiRst          => rst200         (0),
+               axiRst          => urst200        (0),
                axiWriteMasters => memWriteMasters(1 downto 0),
                axiWriteSlaves  => memWriteSlaves (1 downto 0),
                axiReadMasters  => memReadMasters (1 downto 0),
@@ -474,7 +484,7 @@ begin
     port map ( axiReady        => memReady(1),
                --
                axiClk          => clk200         (0),
-               axiRst          => rst200         (0),
+               axiRst          => urst200        (0),
                axiWriteMasters => memWriteMasters(3 downto 2),
                axiWriteSlaves  => memWriteSlaves (3 downto 2),
                axiReadMasters  => memReadMasters (3 downto 2),

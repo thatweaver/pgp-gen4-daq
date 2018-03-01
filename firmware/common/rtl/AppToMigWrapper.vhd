@@ -2,7 +2,7 @@
 -- File       : AppToMigWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-02-23
+-- Last update: 2018-02-28
 -------------------------------------------------------------------------------
 -- Description: Wrapper for Xilinx Axi Data Mover
 -- Axi stream input (dscReadMasters.command) launches an AxiReadMaster to
@@ -118,6 +118,7 @@ architecture mapping of AppToMigWrapper is
     rdIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
     locMaster      : AxiDescMasterType;
     remMaster      : AxiDescMasterType;
+    blocksQueued   : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
     blocksFree     : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
   end record;
 
@@ -127,6 +128,7 @@ architecture mapping of AppToMigWrapper is
     rdIndex        => (others=>'0'),
     locMaster      => AXI_DESC_MASTER_INIT_C,
     remMaster      => AXI_DESC_MASTER_INIT_C,
+    blocksQueued   => (others=>'0'),
     blocksFree     => (others=>'0') );
 
   signal r   : RegType := REG_INIT_C;
@@ -360,8 +362,12 @@ begin
       v.remMaster.status.tReady := '1';
     end if;
 
-    v.blocksFree := resize(r.rdIndex - r.wrIndex - 1, BLOCK_INDEX_SIZE_C);
-    
+    v.blocksQueued := resize(r.cmIndex - r.wrIndex, BLOCK_INDEX_SIZE_C);
+    v.blocksFree   := resize(r.rdIndex - r.wrIndex - 1, BLOCK_INDEX_SIZE_C);
+
+    status.readMasterBusy     <= r.remMaster.command.tValid and not dscWriteSlave   .command.tReady;
+    status.writeSlaveBusy     <= r.locMaster.command.tValid and not intDscWriteSlave.command.tReady;
+    status.blocksQueued       <= r.blocksQueued;
     status.blocksFree         <= r.blocksFree;
     dscWriteMaster            <= r.remMaster;
     intDscWriteMaster.command <= r.locMaster.command;

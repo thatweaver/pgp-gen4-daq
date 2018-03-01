@@ -10,6 +10,7 @@ loadIpCore -path "$::DIR_PATH/PcieXbar.xci"
 loadIpCore -path "$::DIR_PATH/XilinxKcu1500PciePhy_DaqMaster.xci"
 loadIpCore -path "$::DIR_PATH/MigXbar.xci"
 #loadIpCore -path "$::DIR_PATH/MigXbarV2.xci"
+loadIpCore -path "$::DIR_PATH/MigXbarV3.xci"
 loadIpCore -path "$::DIR_PATH/ila_0.xci"
 
 

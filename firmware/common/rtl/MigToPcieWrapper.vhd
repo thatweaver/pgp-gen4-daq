@@ -2,7 +2,7 @@
 -- File       : MigToPcieWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-02-23
+-- Last update: 2018-02-28
 -------------------------------------------------------------------------------
 -- Description: Receives transfer requests representing data buffers pending
 -- in local DRAM and moves data to CPU host memory over PCIe AXI interface.
@@ -175,7 +175,7 @@ architecture mapping of MigToPcieWrapper is
     axilWriteSlave : AxiLiteWriteSlaveType;
     axilReadSlave  : AxiLiteReadSlaveType;
     migConfig      : MigConfigArray      (LANES_G-1 downto 0);
-    fifoDin        : slv(63 downto 0);
+    fifoDin        : Slv64Array          (NAPP_C downto 0);
     wrRamAddr      : slv                 (NAPP_C downto 0);
     rdRamAddr      : slv                 (NAPP_C downto 0);
     rdRamAddr_d    : slv                 (NAPP_C downto 0);
@@ -189,7 +189,7 @@ architecture mapping of MigToPcieWrapper is
     writeSlaves    : AxiStreamSlaveArray (LANES_G-1 downto 0); -- status stream
     wrBaseAddr     : Slv64Array          (NAPP_C downto 0);
     wrIndex        : Slv12Array          (NAPP_C downto 0);
-    loopMode       : slv                 (NAPP_C downto 0);
+    autoFill       : slv                 (NAPP_C downto 0);
     axiBusy        : slv                 (LANES_G-1 downto 0);
     axiWriteMaster : AxiWriteMasterArray (LANES_G-1 downto 0); -- Descriptor
     -- Diagnostics control
@@ -208,7 +208,7 @@ architecture mapping of MigToPcieWrapper is
     axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C,
     axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
     migConfig      => (others=>MIG_CONFIG_INIT_C),
-    fifoDin        => (others=>'0'),
+    fifoDin        => (others=>(others=>'0')),
     wrRamAddr      => (others=>'0'),
     rdTransfer     => (others=>'0'),
     rdRamAddr      => (others=>'0'),
@@ -222,7 +222,7 @@ architecture mapping of MigToPcieWrapper is
     writeSlaves    => (others=>AXI_STREAM_SLAVE_INIT_C),
     wrBaseAddr     => (others=>(others=>'0')),
     wrIndex        => (others=>(others=>'0')),
-    loopMode       => (others=>'0'),
+    autoFill       => (others=>'0'),
     axiBusy        => (others=>'0'),
     axiWriteMaster => (others=>AXI_WRITE_MASTER_INIT_C),
     monEnable      => '0',
@@ -376,6 +376,7 @@ begin
       intDscReadMasters(i)                <= dscReadMasters(i);
       intDscReadMasters(i).command.tValid <= dscReadMasters(i).command.tValid and not fullTransfer(i);
       dscReadSlaves    (i)                <= intDscReadSlaves(i);
+      dscReadSlaves    (i).command.tReady <= intDscReadSlaves(i).command.tReady and not fullTransfer(i);
     end process;
     
     wrTransfer (i) <= intDscReadMasters(i).command.tValid and intDscReadSlaves(i).command.tReady;
@@ -446,8 +447,8 @@ begin
                     FWFT_EN_G    => true )
       port map ( rst        => r.usrRst(0),
                  clk        => axiClk,
-                 wr_en      => r.wrRamAddr   (i),
-                 din        => r.fifoDin,
+                 wr_en      => r.wrRamAddr    (i),
+                 din        => r.fifoDin      (i),
                  data_count => dcountRamAddr  (i),
                  rd_en      => rdRamAddr      (i),
                  dout       => doutRamAddr    (i),
@@ -513,6 +514,8 @@ begin
       variable regRst  : sl;
       variable i, app  : integer;
       variable wdata   : slv(63 downto 0);
+      variable wbusy   : sl;
+      variable tready  : sl;
     begin
       v := r;
 
@@ -554,14 +557,14 @@ begin
       --
       --   Push DMA addresses to the FIFOs associated with each application
       for i in 0 to NAPP_C-1 loop
-        regAddr := toSlv(i*32+64, 12);
+        regAddr := toSlv(i*32+128, 12);
         axiSlaveRegister(regCon, regAddr, 0, v.wrBaseAddr(i)(31 downto  0));
         regAddr := regAddr + 4;
         axiSlaveRegister(regCon, regAddr, 0, v.wrBaseAddr(i)(39 downto 32));
         regAddr := regAddr + 4;
-        axiSlaveRegister(regCon, regAddr, 0, v.fifoDin(31 downto 0));
+        axiSlaveRegister(regCon, regAddr, 0, v.fifoDin(i)(31 downto 0));
         regAddr := regAddr + 4;
-        axiSlaveRegister(regCon, regAddr, 0, v.fifoDin(63 downto 32));
+        axiSlaveRegister(regCon, regAddr, 0, v.fifoDin(i)(63 downto 32));
         axiWrDetect     (regCon, regAddr, v.wrRamAddr(i));
         regAddr := regAddr + 4;
         axiSlaveRegisterR(regCon, regAddr, 0, dcountRamAddr(i));
@@ -569,11 +572,11 @@ begin
         regAddr := regAddr + 4;
         axiSlaveRegisterR(regCon, regAddr, 0, r.wrIndex(i));
         regAddr := regAddr + 4;
-        axiSlaveRegister (regCon, regAddr, 0, v.loopMode(i));
+        axiSlaveRegister (regCon, regAddr, 0, v.autoFill(i));
       end loop;
 
       for i in 0 to LANES_G-1 loop
-        regAddr := toSlv(128+i*32,12);
+        regAddr := toSlv(256+i*32,12);
         axiSlaveRegister(regCon, regAddr, 0, v.app(i));
         regAddr := regAddr + 4;
         axiSlaveRegister(regCon, regAddr, 0, v.migConfig(i).blockSize);
@@ -582,7 +585,14 @@ begin
         regAddr := regAddr + 8;
         axiSlaveRegisterR(regCon, regAddr, 0, dcountTransfer (i));
         regAddr := regAddr + 4;
+        tready := validTransfer(i) and validRamAddr(conv_integer(r.app(i)));
+        wbusy  := r.writeMasters(i).tValid and not intDscWriteSlaves(i).command.tReady;
         axiSlaveRegisterR(regCon, regAddr, 0, migStatus(i).blocksFree);
+        axiSlaveRegisterR(regCon, regAddr,12, migStatus(i).blocksQueued);
+        axiSlaveRegisterR(regCon, regAddr,25, tready);
+        axiSlaveRegisterR(regCon, regAddr,26, wbusy);
+        axiSlaveRegisterR(regCon, regAddr,27, migStatus(i).writeSlaveBusy);
+        axiSlaveRegisterR(regCon, regAddr,28, migStatus(i).readMasterBusy);
         axiSlaveRegisterR(regCon, regAddr,29, mm2s_err(i));
         axiSlaveRegisterR(regCon, regAddr,30, s2mm_err(i));
         axiSlaveRegisterR(regCon, regAddr,31, migStatus(i).memReady);
@@ -640,8 +650,8 @@ begin
         v.wrDescDin(19 downto  0) := doutRamAddr(app)(59 downto 40);
         v.wrDesc   (i) := '1';
 
-        if r.loopMode(app) = '1' then
-          v.fifoDin        := doutRamAddr(app);
+        if r.autoFill(app) = '1' then
+          v.fifoDin  (app) := doutRamAddr(app);
           v.wrRamAddr(app) := '1';
         end if;
       end if;
@@ -742,6 +752,11 @@ begin
 
       if axiRst = '1' then
         v := REG_INIT_C;
+      end if;
+
+      if r.usrRst(0) = '1' then
+        v.monEnable := '0';
+        v.wrIndex   := (others=>(others=>'0'));
       end if;
       
       rin <= v;

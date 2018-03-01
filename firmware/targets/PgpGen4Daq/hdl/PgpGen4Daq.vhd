@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-02-23
+-- Last update: 2018-02-28
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -104,6 +104,9 @@ architecture top_level of PgpGen4Daq is
    signal sysRsts    : slv(1 downto 0);
    signal clk200     : slv(1 downto 0);
    signal rst200     : slv(1 downto 0);
+   signal irst200    : slv(1 downto 0);
+   signal urst200    : slv(1 downto 0);
+   signal userReset  : slv(1 downto 0);
    signal userClock  : sl;
    signal userClk156 : sl;
    signal userSwDip  : slv(3 downto 0);
@@ -155,7 +158,7 @@ architecture top_level of PgpGen4Daq is
    signal hwIbSlaves      : AxiStreamSlaveArray (7 downto 0);
    signal hwIbAlmostFull  : slv                 (7 downto 0);
    
-   signal memReady        : slv                (3 downto 0);
+   signal memReady        : slv                (1 downto 0);
    signal memWriteMasters : AxiWriteMasterArray(7 downto 0);
    signal memWriteSlaves  : AxiWriteSlaveArray (7 downto 0);
    signal memReadMasters  : AxiReadMasterArray (7 downto 0);
@@ -292,6 +295,13 @@ begin
          I => mmcmRstOut(i)(0),
          O => rst200(i));
      
+     irst200(i) <= rst200(i) or userReset(i);
+     -- Forcing BUFG for reset that's used everywhere      
+     U_BUFGU : BUFG
+       port map (
+         I => irst200(i),
+         O => urst200(i));
+
      U_MMCM : entity work.ClockManagerUltraScale
        generic map ( INPUT_BUFG_G       => false,
                      NUM_CLOCKS_G       => 2,
@@ -415,19 +425,19 @@ begin
      GEN_HWDMA : for j in 4*i+0 to 4*i+3 generate
        U_HwDma : entity work.AppToMigWrapper
          generic map ( AXI_STREAM_CONFIG_G => axiStreamConfig,
-                       AXI_BASE_ADDR_G     => ite((i mod 2)=0,x"00000000",x"80000000") )
+                       AXI_BASE_ADDR_G     => (toSlv(j,2) & toSlv(0,30)) )
          port map ( sAxisClk        => hwClks         (j),
                     sAxisRst        => hwRsts         (j),
                     sAxisMaster     => hwIbMasters    (j),
                     sAxisSlave      => hwIbSlaves     (j),
                     sPause          => hwIbAlmostFull (j),
                     mAxiClk         => clk200     (i),
-                    mAxiRst         => rst200     (i),
+                    mAxiRst         => urst200    (i),
                     mAxiWriteMaster => memWriteMasters(j),
                     mAxiWriteSlave  => memWriteSlaves (j),
                     dscWriteMaster  => dscMasters     (j),
                     dscWriteSlave   => dscSlaves      (j),
-                    memReady        => memReady       (j/2),
+                    memReady        => memReady       (i),
                     config          => migConfig      (j),
                     status          => migStatus      (j) );
      end generate;
@@ -437,6 +447,7 @@ begin
                      AXIL_BASE_ADDR_G => x"00800000" )
        port map ( axiClk         => clk200(i),
                   axiRst         => rst200(i),
+                  usrRst         => userReset(i),
                   axiReadMasters => memReadMasters(4*i+3 downto 4*i),
                   axiReadSlaves  => memReadSlaves (4*i+3 downto 4*i),
                   dscReadMasters => dscMasters    (4*i+3 downto 4*i),
@@ -454,66 +465,36 @@ begin
 
      end generate;
 
-   U_MIG0 : entity work.Mig0
+   U_MIG0 : entity work.MigA
     port map ( axiReady        => memReady(0),
                --
                axiClk          => clk200         (0),
-               axiRst          => rst200         (0),
-               axiWriteMasters => memWriteMasters(1 downto 0),
-               axiWriteSlaves  => memWriteSlaves (1 downto 0),
-               axiReadMasters  => memReadMasters (1 downto 0),
-               axiReadSlaves   => memReadSlaves  (1 downto 0),
+               axiRst          => urst200        (0),
+               axiWriteMasters => memWriteMasters(3 downto 0),
+               axiWriteSlaves  => memWriteSlaves (3 downto 0),
+               axiReadMasters  => memReadMasters (3 downto 0),
+               axiReadSlaves   => memReadSlaves  (3 downto 0),
                --
                ddrClkP         => ddrClkP (0),
                ddrClkN         => ddrClkN (0),
                ddrOut          => ddrOut  (0),
                ddrInOut        => ddrInOut(0) );
 
-  U_MIG1 : entity work.Mig1
+  U_MIG1 : entity work.MigB
     port map ( axiReady        => memReady(1),
                --
-               axiClk          => clk200         (0),
-               axiRst          => rst200         (0),
-               axiWriteMasters => memWriteMasters(3 downto 2),
-               axiWriteSlaves  => memWriteSlaves (3 downto 2),
-               axiReadMasters  => memReadMasters (3 downto 2),
-               axiReadSlaves   => memReadSlaves  (3 downto 2),
+               axiClk          => clk200         (1),
+               axiRst          => urst200        (1),
+               axiWriteMasters => memWriteMasters(7 downto 4),
+               axiWriteSlaves  => memWriteSlaves (7 downto 4),
+               axiReadMasters  => memReadMasters (7 downto 4),
+               axiReadSlaves   => memReadSlaves  (7 downto 4),
                --
                ddrClkP         => ddrClkP (1),
                ddrClkN         => ddrClkN (1),
                ddrOut          => ddrOut  (1),
                ddrInOut        => ddrInOut(1) );
   
-  U_MIG2 : entity work.Mig2
-    port map ( axiReady        => memReady(2),
-               --
-               axiClk          => clk200         (1),
-               axiRst          => rst200         (1),
-               axiWriteMasters => memWriteMasters(5 downto 4),
-               axiWriteSlaves  => memWriteSlaves (5 downto 4),
-               axiReadMasters  => memReadMasters (5 downto 4),
-               axiReadSlaves   => memReadSlaves  (5 downto 4),
-               --
-               ddrClkP         => ddrClkP (2),
-               ddrClkN         => ddrClkN (2),
-               ddrOut          => ddrOut  (2),
-               ddrInOut        => ddrInOut(2) );
-
-  U_MIG3 : entity work.Mig3
-    port map ( axiReady        => memReady(3),
-               --
-               axiClk          => clk200         (1),
-               axiRst          => rst200         (1),
-               axiWriteMasters => memWriteMasters(7 downto 6),
-               axiWriteSlaves  => memWriteSlaves (7 downto 6),
-               axiReadMasters  => memReadMasters (7 downto 6),
-               axiReadSlaves   => memReadSlaves  (7 downto 6),
-               --
-               ddrClkP         => ddrClkP (3),
-               ddrClkN         => ddrClkN (3),
-               ddrOut          => ddrOut  (3),
-               ddrInOut        => ddrInOut(3) );
-
    -- Unused user signals
    userLed <= (others => '0');
 
