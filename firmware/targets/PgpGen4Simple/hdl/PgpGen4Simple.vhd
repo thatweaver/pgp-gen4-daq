@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-02-28
+-- Last update: 2018-03-02
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -333,7 +333,7 @@ begin
          --dmaObSlave      => dmaObSlaves    (i),
          --
          dmaIbClk        => clk200         (i),
-         dmaIbRst        => rst200         (i),
+         dmaIbRst        => urst200        (i),
          dmaIbMasters    => dmaIbMasters   (5*i+4 downto 5*i),
          dmaIbSlaves     => dmaIbSlaves    (5*i+4 downto 5*i),
          -- AXI-Lite Interface
@@ -425,7 +425,8 @@ begin
      GEN_HWDMA : for j in 4*i+0 to 4*i+3 generate
        U_HwDma : entity work.AppToMigWrapper
          generic map ( AXI_STREAM_CONFIG_G => axiStreamConfig,
-                       AXI_BASE_ADDR_G     => (toSlv(j,1) & toSlv(0,31)) )
+                       AXI_BASE_ADDR_G     => (toSlv(j,1) & toSlv(0,31)),
+                       DEBUG_G             => (j<1) )
          port map ( sAxisClk        => hwClks         (j),
                     sAxisRst        => hwRsts         (j),
                     sAxisMaster     => hwIbMasters    (j),
