@@ -2,7 +2,7 @@
 -- File       : PcieXbarV2Wrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2016-02-14
--- Last update: 2018-02-22
+-- Last update: 2018-03-02
 -------------------------------------------------------------------------------
 -- Description: AXI DMA Crossbar
 -------------------------------------------------------------------------------
@@ -283,7 +283,8 @@ architecture mapping of PcieXbarV2Wrapper is
   END COMPONENT;
 
   signal mAxiRstL : sl;
-
+  signal sAxiRstS : sl;
+  
   signal sAxiReadMasters  : AxiReadMasterArray (sAxiWriteMasters'range) := (others=>AXI_READ_MASTER_INIT_C);
   signal sAxiReadSlaves   : AxiReadSlaveArray  (sAxiWriteMasters'range) := (others=>AXI_READ_SLAVE_INIT_C);
   signal isAxiWriteMasters : AxiWriteMasterArray(sAxiWriteMasters'range) := (others=>AXI_WRITE_MASTER_INIT_C);
@@ -300,7 +301,7 @@ architecture mapping of PcieXbarV2Wrapper is
   
 begin
 
-  mAxiRstL        <= not(mAxiRst);
+  mAxiRstL        <= not(mAxiRst) and not(sAxiRstS);
   mAxiWriteMaster <= imAxiWriteMaster;
   mAxiReadMaster  <= imAxiReadMaster;
   
@@ -358,6 +359,11 @@ begin
                 probe0           (127) => '0',
                 probe0(255 downto 128) => (others=>'0') );
 
+   U_SAXI_RST : entity work.RstSync
+     port map ( clk      => mAxiClk,
+                asyncRst => sAxiRst,
+                syncRst  => sAxiRstS );
+     
    GEN_SAXI : for i in 0 to 4 generate
      U_WriteFifo : entity work.AxiWritePathFifo
        generic map ( AXI_CONFIG_G => AXI_CONFIG_C )

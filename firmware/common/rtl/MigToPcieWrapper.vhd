@@ -2,7 +2,7 @@
 -- File       : MigToPcieWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-02-28
+-- Last update: 2018-03-01
 -------------------------------------------------------------------------------
 -- Description: Receives transfer requests representing data buffers pending
 -- in local DRAM and moves data to CPU host memory over PCIe AXI interface.
@@ -257,8 +257,27 @@ architecture mapping of MigToPcieWrapper is
 
   signal s2mm_err         : slv(LANES_G-1 downto 0);
   signal mm2s_err         : slv(LANES_G-1 downto 0);
+
+  constant DEBUG_C : boolean := true;
+
+  component ila_0
+    port ( clk : in sl;
+           probe0 : in slv(255 downto 0) );
+  end component;
+  
 begin
 
+  GEN_DEBUG : if DEBUG_C generate
+    U_ILA : ila_0
+      port map ( clk                    => axiClk,
+                 probe0(  3 downto   0) => s2mm_err,
+                 probe0(  7 downto   4) => mm2s_err,
+                 probe0( 87 downto   8) => intDscReadMasters(0).command.tData(79 downto 0),
+                 probe0(167 downto  88) => r.writeMasters(0).tData           (79 downto 0),
+                 probe0(205 downto 168) => iaxiWriteMasters(0).awaddr        (37 downto 0),
+                 probe0(255 downto 206) => (others=>'0') );
+  end generate;
+  
   axiRstN                             <= not axiRst;
   axiReadMasters                      <= iaxiReadMasters;
   usrRst                              <= r.usrRst(0);

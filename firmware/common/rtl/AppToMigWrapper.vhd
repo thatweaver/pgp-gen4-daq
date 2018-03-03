@@ -2,7 +2,7 @@
 -- File       : AppToMigWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-02-28
+-- Last update: 2018-03-01
 -------------------------------------------------------------------------------
 -- Description: Wrapper for Xilinx Axi Data Mover
 -- Axi stream input (dscReadMasters.command) launches an AxiReadMaster to
@@ -105,9 +105,11 @@ architecture mapping of AppToMigWrapper is
   signal intDscWriteMaster : AxiDescMasterType;
   signal intDscWriteSlave  : AxiDescSlaveType;
 
-  signal wrTransfer   : sl;
-  signal dinTransfer  : slv(22 downto 0);
-  signal doutTransfer : slv(22 downto 0);
+  signal wrTransfer    : sl;
+  signal rdTransfer    : sl;
+  signal validTransfer : sl;
+  signal dinTransfer   : slv(22 downto 0);
+  signal doutTransfer  : slv(22 downto 0);
   
   signal axiRstN : sl;
   signal mPause  : sl;
@@ -116,9 +118,9 @@ architecture mapping of AppToMigWrapper is
     cmIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
     wrIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
     rdIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
+    rdTransfer     : sl;
     locMaster      : AxiDescMasterType;
     remMaster      : AxiDescMasterType;
-    blocksQueued   : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
     blocksFree     : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
   end record;
 
@@ -126,9 +128,9 @@ architecture mapping of AppToMigWrapper is
     cmIndex        => (others=>'0'),
     wrIndex        => (others=>'0'),
     rdIndex        => (others=>'0'),
+    rdTransfer     => '0',
     locMaster      => AXI_DESC_MASTER_INIT_C,
     remMaster      => AXI_DESC_MASTER_INIT_C,
-    blocksQueued   => (others=>'0'),
     blocksFree     => (others=>'0') );
 
   signal r   : RegType := REG_INIT_C;
@@ -155,6 +157,7 @@ architecture mapping of AppToMigWrapper is
 
   signal trig_out_app : sl;
   signal trig_out_mig : sl;
+  signal s2mm_err     : sl;
   
 begin
 
@@ -190,7 +193,8 @@ begin
                  probe0(161)             => r.remMaster.command.tValid,
                  probe0(233 downto 162)  => r.remMaster.command.tData(71 downto 0),
                  probe0(234)             => dscWriteSlave.command.tReady,
-                 probe0(255 downto 235)  => (others=>'0') );
+                 probe0(235)             => s2mm_err,
+                 probe0(255 downto 236)  => (others=>'0') );
   end generate;
 
   sAxisSlave                <= isAxisSlave;
@@ -236,7 +240,7 @@ begin
   U_ADM : AppToMig
     port map ( m_axi_s2mm_aclk            => mAxiClk,
                m_axi_s2mm_aresetn         => axiRstN,
-               s2mm_err                   => open,
+               s2mm_err                   => s2mm_err,
                m_axis_s2mm_cmdsts_awclk   => mAxiClk,
                m_axis_s2mm_cmdsts_aresetn => axiRstN,
                s_axis_s2mm_cmd_tvalid     => intDscWriteMaster.command.tValid,
@@ -275,24 +279,24 @@ begin
   wrTransfer  <= intDscWriteSlave.status.tValid and intDscWriteMaster.status.tReady;
   dinTransfer <= intDscWriteSlave.status.tData(30 downto 8);
   
-  U_TransferFifo : entity work.SimpleDualPortRam
+  U_TransferFifo : entity work.FifoSync
     generic map ( DATA_WIDTH_G => 23,
-                  ADDR_WIDTH_G => BLOCK_INDEX_SIZE_C )
-    port map ( clka       => mAxiClk,
-               ena        => '1',
-               wea        => wrTransfer,
-               addra      => r.wrIndex,
-               dina       => dinTransfer,
-               clkb       => mAxiClk,
-               enb        => '1',
-               rstb       => mAxiRst,
-               addrb      => r.rdIndex,
-               doutb      => doutTransfer );
+                  ADDR_WIDTH_G => BLOCK_INDEX_SIZE_C,
+                  FWFT_EN_G    => true )
+    port map ( rst        => mAxiRst,
+               clk        => mAxiClk,
+               wr_en      => wrTransfer,
+               din        => dinTransfer,
+               data_count => status.blocksQueued,
+               rd_en      => rdTransfer,
+               dout       => doutTransfer,
+               valid      => validTransfer );
 
   comb : process ( r, mAxiRst, 
                    doutTransfer ,
                    dscWriteSlave,
                    intDscWriteSlave,
+                   validTransfer,
                    config ) is
     variable v       : RegType;
     variable i       : integer;
@@ -304,6 +308,7 @@ begin
     v := r;
 
     v.locMaster.command.tLast  := '1'; -- always a single word
+    v.rdTransfer               := '0';
     
     i := BLOCK_BASE_SIZE_C;
     
@@ -345,9 +350,10 @@ begin
     end if;
     
     if (v.remMaster.command.tValid = '0' and
-        r.rdIndex /= r.wrIndex) then
+        validTransfer = '1') then
       raddr   := resize(r.rdIndex & toSlv(0,i), 32) + AXI_BASE_ADDR_G;
-      rlen    := doutTransfer;
+      rlen                       := doutTransfer;
+      v.rdTransfer               := '1';
       v.remMaster.command.tData(71 downto 0) := x"0" & toSlv(0,4) &
                                                 raddr &
                                                 "01" & toSlv(0,6) &
@@ -362,16 +368,15 @@ begin
       v.remMaster.status.tReady := '1';
     end if;
 
-    v.blocksQueued := resize(r.cmIndex - r.wrIndex, BLOCK_INDEX_SIZE_C);
     v.blocksFree   := resize(r.rdIndex - r.wrIndex - 1, BLOCK_INDEX_SIZE_C);
 
     status.readMasterBusy     <= r.remMaster.command.tValid and not dscWriteSlave   .command.tReady;
     status.writeSlaveBusy     <= r.locMaster.command.tValid and not intDscWriteSlave.command.tReady;
-    status.blocksQueued       <= r.blocksQueued;
     status.blocksFree         <= r.blocksFree;
     dscWriteMaster            <= r.remMaster;
     intDscWriteMaster.command <= r.locMaster.command;
     intDscWriteMaster.status  <= v.locMaster.status;
+    rdTransfer                <= v.rdTransfer;
     
     if mAxiRst = '1' then
       v := REG_INIT_C;
