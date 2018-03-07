@@ -2,7 +2,7 @@
 -- File       : PcieXbarV2Wrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2016-02-14
--- Last update: 2018-03-02
+-- Last update: 2018-03-06
 -------------------------------------------------------------------------------
 -- Description: AXI DMA Crossbar
 -------------------------------------------------------------------------------
@@ -294,6 +294,8 @@ architecture mapping of PcieXbarV2Wrapper is
 
   constant AXI_CONFIG_C : AxiConfigType := axiConfig(38,16,1,8);
   
+  constant DEBUG_C : boolean := false;
+  
   component ila_0
     port ( clk     : in sl;
            probe0  : in slv(255 downto 0) );
@@ -304,7 +306,8 @@ begin
   mAxiRstL        <= not(mAxiRst) and not(sAxiRstS);
   mAxiWriteMaster <= imAxiWriteMaster;
   mAxiReadMaster  <= imAxiReadMaster;
-  
+
+  GEN_DEBUG : if DEBUG_C generate
    U_ILA_MAXI : ila_0
      port map ( clk                    => mAxiClk,
                 probe0             (0) => mAxiRst,
@@ -357,8 +360,14 @@ begin
                 probe0           (125) => isAxiWriteMasters(3).bready,
                 probe0           (126) => isAxiWriteMasters(4).bready,
                 probe0           (127) => '0',
-                probe0(255 downto 128) => (others=>'0') );
-
+                probe0(159 downto 128) => isAxiWriteMasters(0).wdata(31 downto 0),
+                probe0(175 downto 160) => isAxiWriteMasters(0).wstrb(15 downto 0),
+                probe0(183 downto 176) => imAxiWriteMaster    .wdata( 7 downto 0),
+                probe0(191 downto 184) => isAxiWriteMasters(0).wdata( 7 downto 0),
+                probe0           (192) => isAxiWriteMasters(0).wlast,
+                probe0(255 downto 193) => (others=>'0') );
+   end generate;
+   
    U_SAXI_RST : entity work.RstSync
      port map ( clk      => mAxiClk,
                 asyncRst => sAxiRst,

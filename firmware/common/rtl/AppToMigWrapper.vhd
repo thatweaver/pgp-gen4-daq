@@ -2,7 +2,7 @@
 -- File       : AppToMigWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-03-01
+-- Last update: 2018-03-06
 -------------------------------------------------------------------------------
 -- Description: Wrapper for Xilinx Axi Data Mover
 -- Axi stream input (dscReadMasters.command) launches an AxiReadMaster to
@@ -40,15 +40,16 @@ entity AppToMigWrapper is
     sAxisRst         : in  sl;
     sAxisMaster      : in  AxiStreamMasterType;
     sAxisSlave       : out AxiStreamSlaveType ;
-    sPause           : out sl;
+    sAlmostFull      : out sl;
+    sFull            : out sl;
     -- AXI4 Interface to MIG
     mAxiClk          : in  sl; -- 200MHz
     mAxiRst          : in  sl;
     mAxiWriteMaster  : out AxiWriteMasterType ;
     mAxiWriteSlave   : in  AxiWriteSlaveType  ;
     -- Command/Status
-    dscWriteMaster   : out AxiDescMasterType  ;
-    dscWriteSlave    : in  AxiDescSlaveType   ;
+    dscReadMaster    : out AxiDescMasterType  ;
+    dscReadSlave     : in  AxiDescSlaveType   ;
     -- Configuration
     memReady         : in  sl := '0';
     config           : in  MigConfigType;
@@ -105,39 +106,60 @@ architecture mapping of AppToMigWrapper is
   signal intDscWriteMaster : AxiDescMasterType;
   signal intDscWriteSlave  : AxiDescSlaveType;
 
-  signal wrTransfer    : sl;
-  signal rdTransfer    : sl;
-  signal validTransfer : sl;
-  signal dinTransfer   : slv(22 downto 0);
   signal doutTransfer  : slv(22 downto 0);
   
   signal axiRstN : sl;
   signal mPause  : sl;
+  signal mFull   : sl;
+
+  type TagState is (IDLE_T, REQUESTED_T, COMPLETED_T);
+  type TagStateArray is array(natural range<>) of TagState;
+  
+  constant BIS : integer := BLOCK_INDEX_SIZE_C;
   
   type RegType is record
-    cmIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
-    wrIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
-    rdIndex        : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
-    rdTransfer     : sl;
+    wrIndex        : slv(BIS-1 downto 0);  -- write request
+    wcIndex        : slv(BIS-1 downto 0);  -- write complete
+    rdIndex        : slv(BIS-1 downto 0);  -- read complete
+    wrTag          : TagStateArray(15 downto 0);
+    wrTransfer     : sl;
+    wrTransferAddr : slv(BIS-1 downto 0);
+    wrTransferDin  : slv(22 downto 0);
     locMaster      : AxiDescMasterType;
     remMaster      : AxiDescMasterType;
-    blocksFree     : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
+    blocksFree     : slv(BIS-1 downto 0);
+    tlast          : sl;
+    recvdQueCnt    : slv(7 downto 0);
+    writeQueCnt    : slv(7 downto 0);
+    wstrbl         : sl;
+    framecnt       : slv(7 downto 0);
+    framecnt_err   : sl;
   end record;
 
   constant REG_INIT_C : RegType := (
-    cmIndex        => (others=>'0'),
     wrIndex        => (others=>'0'),
+    wcIndex        => (others=>'0'),
     rdIndex        => (others=>'0'),
-    rdTransfer     => '0',
+    wrTag          => (others=>IDLE_T),
+    wrTransfer     => '0',
+    wrTransferAddr => (others=>'0'),
+    wrTransferDin  => (others=>'0'),
     locMaster      => AXI_DESC_MASTER_INIT_C,
     remMaster      => AXI_DESC_MASTER_INIT_C,
-    blocksFree     => (others=>'0') );
+    blocksFree     => (others=>'0'),
+    tlast          => '1',
+    recvdQueCnt    => (others=>'0'),
+    writeQueCnt    => (others=>'0'),
+    wstrbl         => '0',
+    framecnt       => (others=>'0'),
+    framecnt_err   => '0' );
 
   signal r   : RegType := REG_INIT_C;
   signal rin : RegType;
 
   signal isAxisSlave : AxiStreamSlaveType;
   signal isPause     : sl;
+  signal isFull      : sl;
   
   signal imAxiWriteMaster : AxiWriteMasterType := AXI_WRITE_MASTER_INIT_C;
 
@@ -155,9 +177,10 @@ architecture mapping of AppToMigWrapper is
            probe0       : in slv(255 downto 0) );
   end component;
 
-  signal trig_out_app : sl;
-  signal trig_out_mig : sl;
-  signal s2mm_err     : sl;
+  signal s2mm_err      : sl;
+  signal sframecnt     : slv(7 downto 0) := (others=>'0');
+  signal sframecnt_err : sl := '0';
+  signal sBlocksFree   : slv(BIS-1 downto 0);
   
 begin
 
@@ -169,14 +192,19 @@ begin
                  probe0(2)    => sAxisMaster.tLast,
                  probe0(3)    => isAxisSlave.tReady,
                  probe0(4)    => isPause,
-                 probe0(255 downto 5) => (others=>'0') );
+                 probe0( 68 downto  5) => sAxisMaster.tData(63 downto 0),
+                 probe0( 76 downto 69) => sframecnt,
+                 probe0( 77 )          => sframecnt_err,
+                 probe0( 78 )          => isFull,
+                 probe0( 88 downto 79) => resize(sBlocksFree,10),
+                 probe0(255 downto 89) => (others=>'0') );
     U_ILA_MIG : ila_0
       port map ( clk          => mAxiClk,
                  probe0(0)              => imAxiWriteMaster.awvalid,
                  probe0(32 downto 1)    => imAxiWriteMaster.awaddr(31 downto 0),
-                 probe0(40 downto 33)   => imAxiWriteMaster.awlen,
-                 probe0(43 downto 41)   => imAxiWriteMaster.awsize,
-                 probe0(44)             => mAxiWriteSlave.awready,
+                 probe0(40 downto 33)    => imAxiWriteMaster.awlen,
+                 probe0(43 downto 41)    => imAxiWriteMaster.awsize,
+                 probe0(44)              => mAxiWriteSlave.awready,
                  probe0(45)              => imAxiWriteMaster.wvalid,
                  probe0(46)              => imAxiWriteMaster.wlast,
                  probe0(47)              => mAxiWriteSlave.wready,
@@ -192,22 +220,39 @@ begin
                  probe0(160)             => intDscWriteMaster.status .tReady,
                  probe0(161)             => r.remMaster.command.tValid,
                  probe0(233 downto 162)  => r.remMaster.command.tData(71 downto 0),
-                 probe0(234)             => dscWriteSlave.command.tReady,
+                 probe0(234)             => dscReadSlave.command.tReady,
                  probe0(235)             => s2mm_err,
-                 probe0(255 downto 236)  => (others=>'0') );
+                 probe0(236)             => r.framecnt_err,
+                 probe0(244 downto 237)  => r.framecnt,
+                 probe0(255 downto 245)  => (others=>'0') );
   end generate;
 
   sAxisSlave                <= isAxisSlave;
-  sPause                    <= isPause;
+  sAlmostFull               <= isPause;
+  sFull                     <= isFull;
   mAxiWriteMaster           <= imAxiWriteMaster;
   
   mPause <= '1' when (r.blocksFree < config.blocksPause) else '0';
+  mFull  <= '1' when (r.blocksFree < 4) else '0';
+
+  U_Free  : entity work.SynchronizerFifo
+    generic map ( DATA_WIDTH_G => BIS )
+    port map ( wr_clk  => mAxiClk,
+               din     => r.blocksFree,
+               rd_clk  => sAxisClk,
+               dout    => sBlocksFree );
   
   U_Pause : entity work.Synchronizer
     port map ( clk     => sAxisClk,
                rst     => sAxisRst,
                dataIn  => mPause,
                dataOut => isPause );
+
+  U_Full : entity work.Synchronizer
+    port map ( clk     => sAxisClk,
+               rst     => sAxisRst,
+               dataIn  => mFull,
+               dataOut => isFull );
 
   U_Ready : entity work.Synchronizer
     port map ( clk     => mAxiClk,
@@ -276,61 +321,74 @@ begin
                s_axis_s2mm_tready         => mAxisSlave.tReady
                );
   
-  wrTransfer  <= intDscWriteSlave.status.tValid and intDscWriteMaster.status.tReady;
-  dinTransfer <= intDscWriteSlave.status.tData(30 downto 8);
-  
-  U_TransferFifo : entity work.FifoSync
+  U_TransferFifo : entity work.SimpleDualPortRam
     generic map ( DATA_WIDTH_G => 23,
-                  ADDR_WIDTH_G => BLOCK_INDEX_SIZE_C,
-                  FWFT_EN_G    => true )
-    port map ( rst        => mAxiRst,
-               clk        => mAxiClk,
-               wr_en      => wrTransfer,
-               din        => dinTransfer,
-               data_count => status.blocksQueued,
-               rd_en      => rdTransfer,
-               dout       => doutTransfer,
-               valid      => validTransfer );
+                  ADDR_WIDTH_G => BIS )
+    port map ( clka       => mAxiClk,
+               wea        => r.wrTransfer,
+               addra      => r.wrTransferAddr,
+               dina       => r.wrTransferDin,
+               clkb       => mAxiClk,
+               addrb      => rin.rdIndex,
+               doutb      => doutTransfer );
 
-  comb : process ( r, mAxiRst, 
+  comb : process ( r, mAxiRst,
+                   mAxisMaster, mAxisSlave,
                    doutTransfer ,
-                   dscWriteSlave,
+                   dscReadSlave,
                    intDscWriteSlave,
-                   validTransfer,
-                   config ) is
+                   config,
+                   imAxiWriteMaster ) is
     variable v       : RegType;
     variable i       : integer;
     variable wlen    : slv(22 downto 0);
     variable waddr   : slv(31 downto 0);
     variable rlen    : slv(22 downto 0);
     variable raddr   : slv(31 downto 0);
+    variable stag    : slv( 3 downto 0);
+    variable itag    : integer;
   begin
     v := r;
 
     v.locMaster.command.tLast  := '1'; -- always a single word
-    v.rdTransfer               := '0';
+    v.wrTransfer               := '0';
     
     i := BLOCK_BASE_SIZE_C;
     
     --
     --  Keep stuffing new block addresses into the Axi engine
     --
+    if (mAxisMaster.tValid = '1' and
+        mAxisSlave.tReady  = '1') then
+      if r.tlast = '1' then
+        v.recvdQueCnt := v.recvdQueCnt + 1;
+      end if;
+      v.tlast := mAxisMaster.tLast;
+    end if;
+    
     if intDscWriteSlave.command.tReady = '1' then
       v.locMaster.command.tValid := '0';
     end if;
 
-    if v.locMaster.command.tValid = '0' then
-      waddr   := resize(r.cmIndex & toSlv(0,i), 32) + AXI_BASE_ADDR_G;
+    itag := conv_integer(r.wrIndex(3 downto 0));
+    if (v.locMaster.command.tValid = '0' and
+        r.wrTag(itag) = IDLE_T and
+        r.recvdQueCnt /= 0) then
+      waddr   := resize(r.wrIndex & toSlv(0,i), 32) + AXI_BASE_ADDR_G;
       wlen    := (others=>'0');
       wlen(i) := '1';
-      v.locMaster.command.tData(71 downto 0) := x"0" & toSlv(0,4) &
-                                                waddr &
-                                                "01" & toSlv(0,6) &
-                                                '1' & wlen;
-      v.cmIndex := r.cmIndex + 1;
-      if v.cmIndex = r.rdIndex then  -- prevent overwrite
-        v.cmIndex := r.cmIndex;
+      v.locMaster.command.tData(71 downto 0) :=
+        x"0" &                   -- reserved
+        toSlv(itag,4) &          -- tag
+        waddr &                  -- address[31:0]
+        "01" & toSlv(0,6) &      -- EOF command
+        '1' & wlen;              -- max write length
+      v.wrIndex := r.wrIndex + 1;
+      if r.wrIndex + 16 = r.rdIndex then  -- prevent overwrite
+        v.wrIndex := r.wrIndex;
       else
+        v.recvdQueCnt              := v.recvdQueCnt - 1;
+        v.wrTag(itag)              := REQUESTED_T;
         v.locMaster.command.tValid := '1';
       end if;
     end if;
@@ -340,20 +398,34 @@ begin
       v.locMaster.status.tReady := '0';
     end if;
 
+    stag := intDscWriteSlave.status.tData(3 downto 0);
+    itag := conv_integer(stag);
     if intDscWriteSlave.status.tValid = '1' then
       v.locMaster.status.tReady := '1';
-      v.wrIndex                 := r.wrIndex + 1;
+      v.wrTag(itag)      := COMPLETED_T;
+      v.wrTransfer       := '1';
+      v.wrTransferDin    := intDscWriteSlave.status.tData(30 downto 8);
+      if stag < r.wcIndex(3 downto 0) then
+        v.wrTransferAddr := (r.wcIndex(BIS-1 downto 4)+1) & stag;
+      else
+        v.wrTransferAddr := (r.wcIndex(BIS-1 downto 4)+0) & stag;
+      end if;
     end if;
     
-    if dscWriteSlave.command.tReady = '1' then
+    itag := conv_integer(r.wcIndex(3 downto 0));
+    if r.wrTag(itag) = COMPLETED_T then
+      v.wrTag(itag) := IDLE_T;
+      v.wcIndex     := r.wcIndex + 1;
+    end if;
+    
+    if dscReadSlave.command.tReady = '1' then
       v.remMaster.command.tValid := '0';
     end if;
     
     if (v.remMaster.command.tValid = '0' and
-        validTransfer = '1') then
+        r.rdIndex /= r.wcIndex) then
       raddr   := resize(r.rdIndex & toSlv(0,i), 32) + AXI_BASE_ADDR_G;
       rlen                       := doutTransfer;
-      v.rdTransfer               := '1';
       v.remMaster.command.tData(71 downto 0) := x"0" & toSlv(0,4) &
                                                 raddr &
                                                 "01" & toSlv(0,6) &
@@ -364,20 +436,45 @@ begin
     end if;
 
     v.remMaster.status.tReady := '0';
-    if dscWriteSlave.status.tValid = '1' then
+    if dscReadSlave.status.tValid = '1' then
       v.remMaster.status.tReady := '1';
     end if;
 
-    v.blocksFree   := resize(r.rdIndex - r.wrIndex - 1, BLOCK_INDEX_SIZE_C);
+    if (r.locMaster.command.tValid = '1' and
+        intDscWriteSlave.command.tReady = '1') then
+      v.writeQueCnt := v.writeQueCnt + 1;
+    end if;
 
-    status.readMasterBusy     <= r.remMaster.command.tValid and not dscWriteSlave   .command.tReady;
-    status.writeSlaveBusy     <= r.locMaster.command.tValid and not intDscWriteSlave.command.tReady;
+    if (v.locMaster.status.tReady = '1' and
+        intDscWriteSlave.status.tValid = '1') then
+      v.writeQueCnt := v.writeQueCnt - 1;
+    end if;
+    
+    
+    v.blocksFree              := resize(r.rdIndex - r.wcIndex - 1, BIS);
+
     status.blocksFree         <= r.blocksFree;
-    dscWriteMaster            <= r.remMaster;
+    status.blocksQueued       <= resize(r.wrIndex - r.rdIndex, BIS);
+    status.readMasterBusy     <= r.remMaster.command.tValid and not dscReadSlave    .command.tReady;
+    status.writeSlaveBusy     <= r.locMaster.command.tValid and not intDscWriteSlave.command.tReady;
+    status.writeQueCnt        <= r.writeQueCnt;
+    dscReadMaster             <= r.remMaster;
     intDscWriteMaster.command <= r.locMaster.command;
     intDscWriteMaster.status  <= v.locMaster.status;
-    rdTransfer                <= v.rdTransfer;
-    
+
+    if imAxiWriteMaster.wvalid = '1' then
+      v.wstrbl := imAxiWriteMaster.wstrb(15);
+      if (imAxiWriteMaster.wstrb(15) = '1' and
+          r.wstrbl                   = '0') then
+        v.framecnt := imAxiWriteMaster.wdata(7 downto 0);
+        if v.framecnt /= r.framecnt+1 then
+          v.framecnt_err := '1';
+        else
+          v.framecnt_err := '0';
+        end if;
+      end if;
+    end if;
+
     if mAxiRst = '1' then
       v := REG_INIT_C;
     end if;
@@ -392,7 +489,24 @@ begin
       r <= rin;
     end if;
   end process seq;
-  
+
+  sseq : process (sAxisClk) is
+    variable tLastd : sl := '1';
+  begin
+    if rising_edge(sAxisClk) then
+      if (sAxisMaster.tValid = '1' and
+          sAxisMaster.tLast  = '0' and
+          tLastd             = '1') then
+        if sAxisMaster.tData(7 downto 0) /= sframecnt+1 then
+          sframecnt_err <= '1';
+        else
+          sframecnt_err <= '0';
+        end if;
+        sframecnt <= sAxisMaster.tData(7 downto 0);
+      end if;
+      tLastd := sAxisMaster.tLast;
+    end if;
+  end process sseq;
   
 end mapping;
 

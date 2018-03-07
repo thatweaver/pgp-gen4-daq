@@ -2,7 +2,7 @@
 -- File       : PgpLaneRx.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2018-02-28
+-- Last update: 2018-03-06
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -36,6 +36,9 @@ entity PgpLaneRx is
       dmaRst       : in  sl;
       dmaIbMaster  : out AxiStreamMasterType;
       dmaIbSlave   : in  AxiStreamSlaveType;
+      dmaIbFull    : in  sl;
+      frameDrop    : out sl;
+      frameTrunc   : out sl;
       -- PGP Interface (pgpClk domain)
       pgpClk       : in  sl;
       pgpRst       : in  sl;
@@ -63,58 +66,71 @@ architecture mapping of PgpLaneRx is
    signal rxMaster : AxiStreamMasterType;
    signal rxSlave  : AxiStreamSlaveType;
 
+   signal drop     : slv(NUM_VC_G-1 downto 0);
+   signal trunc    : slv(NUM_VC_G-1 downto 0);
+   
 begin
 
-   GEN_VEC :
-   for i in NUM_VC_G-1 downto 0 generate
+   frameDrop  <= uOr(drop);
+   frameTrunc <= uOr(trunc);
 
-      --
-      --  Should never need to assert RxCtrl
-      --    If we do, dump packet and assert eofe
-      --
-      PGP_FLOW : entity work.AxiStreamFlow
+   GEN_MUX : if NUM_VC_G > 1 generate
+
+     GEN_VEC :
+     for i in NUM_VC_G-1 downto 0 generate
+
+       --
+       --  Should never need to assert RxCtrl
+       --    If we do, dump packet and assert eofe
+       --
+       PGP_FLOW : entity work.AxiStreamFlow
+         generic map ( DEBUG_G => ite(LANE_G<1, i<1, false) )
          port map (
            clk         => pgpClk,
            rst         => pgpRst,
            sAxisMaster => pgpRxMasters   (i),
            sAxisCtrl   => pgpRxCtrl      (i),
            mAxisMaster => intPgpRxMasters(i),
-           mAxisCtrl   => intPgpRxCtrl   (i) );
+           mAxisCtrl   => intPgpRxCtrl   (i),
+           ibFull      => dmaIbFull,
+           drop        => drop           (i),
+           trunc       => trunc          (i) );
+       
 
-      PGP_FIFO : entity work.AxiStreamFifoV2
+       PGP_FIFO : entity work.AxiStreamFifoV2
          generic map (
-            -- General Configurations
-            TPD_G               => TPD_G,
-            INT_PIPE_STAGES_G   => 1,
-            PIPE_STAGES_G       => 1,
-            SLAVE_READY_EN_G    => false,
-            VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
-            VALID_BURST_MODE_G  => true,
-            -- FIFO configurations
-            BRAM_EN_G           => true,
-            GEN_SYNC_FIFO_G     => true,
-            FIFO_ADDR_WIDTH_G   => 10,
-            FIFO_FIXED_THRESH_G => true,
-            FIFO_PAUSE_THRESH_G => 1020,
-            -- AXI Stream Port Configurations
-            SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
-            MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
+           -- General Configurations
+           TPD_G               => TPD_G,
+           INT_PIPE_STAGES_G   => 1,
+           PIPE_STAGES_G       => 1,
+           SLAVE_READY_EN_G    => false,
+           VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
+           VALID_BURST_MODE_G  => true,
+           -- FIFO configurations
+           BRAM_EN_G           => true,
+           GEN_SYNC_FIFO_G     => true,
+           FIFO_ADDR_WIDTH_G   => 10,
+           FIFO_FIXED_THRESH_G => true,
+           FIFO_PAUSE_THRESH_G => 1020,
+           -- AXI Stream Port Configurations
+           SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
+           MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
          port map (
-            -- Slave Port
-            sAxisClk    => pgpClk,
-            sAxisRst    => pgpRst,
-            sAxisMaster => intPgpRxMasters(i),
-            sAxisCtrl   => intPgpRxCtrl   (i),
-            -- Master Port
-            mAxisClk    => pgpClk,
-            mAxisRst    => pgpRst,
-            mAxisMaster => rxMasters(i),
-            mAxisSlave  => rxSlaves(i));
+           -- Slave Port
+           sAxisClk    => pgpClk,
+           sAxisRst    => pgpRst,
+           sAxisMaster => intPgpRxMasters(i),
+           sAxisCtrl   => intPgpRxCtrl   (i),
+           -- Master Port
+           mAxisClk    => pgpClk,
+           mAxisRst    => pgpRst,
+           mAxisMaster => rxMasters(i),
+           mAxisSlave  => rxSlaves(i));
 
-   end generate GEN_VEC;
+     end generate GEN_VEC;
 
-   U_Mux : entity work.AxiStreamMux
-      generic map (
+     U_Mux : entity work.AxiStreamMux
+       generic map (
          TPD_G                => TPD_G,
          NUM_SLAVES_G         => NUM_VC_G,
          MODE_G               => "ROUTED",
@@ -123,7 +139,7 @@ begin
          ILEAVE_ON_NOTVALID_G => false,
          ILEAVE_REARB_G       => 128,
          PIPE_STAGES_G        => 1)
-      port map (
+       port map (
          -- Clock and reset
          axisClk      => pgpClk,
          axisRst      => pgpRst,
@@ -133,9 +149,9 @@ begin
          -- Master
          mAxisMaster  => rxMaster,
          mAxisSlave   => rxSlave);
-
-   ASYNC_FIFO : entity work.AxiStreamFifoV2
-      generic map (
+     
+     ASYNC_FIFO : entity work.AxiStreamFifoV2
+       generic map (
          -- General Configurations
          TPD_G               => TPD_G,
          INT_PIPE_STAGES_G   => 1,
@@ -149,7 +165,7 @@ begin
          -- AXI Stream Port Configurations
          SLAVE_AXI_CONFIG_G  => DMA_AXIS_CONFIG_C,
          MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
-      port map (
+       port map (
          -- Slave Port
          sAxisClk    => pgpClk,
          sAxisRst    => pgpRst,
@@ -161,4 +177,52 @@ begin
          mAxisMaster => dmaIbMaster,
          mAxisSlave  => dmaIbSlave);
 
+   end generate;
+
+   GEN_NOMUX : if NUM_VC_G < 2 generate
+
+     PGP_FLOW : entity work.AxiStreamFlow
+       generic map ( DEBUG_G => true )
+       port map (
+         clk         => pgpClk,
+         rst         => pgpRst,
+         sAxisMaster => pgpRxMasters   (0),
+         sAxisCtrl   => pgpRxCtrl      (0),
+         mAxisMaster => intPgpRxMasters(0),
+         mAxisCtrl   => intPgpRxCtrl   (0),
+         ibFull      => dmaIbFull,
+         drop        => drop           (0),
+         trunc       => trunc          (0) );
+
+     ASYNC_FIFO : entity work.AxiStreamFifoV2
+       generic map (
+         -- General Configurations
+         TPD_G               => TPD_G,
+         INT_PIPE_STAGES_G   => 1,
+         PIPE_STAGES_G       => 1,
+         SLAVE_READY_EN_G    => false,
+         VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
+         VALID_BURST_MODE_G  => true,
+         -- FIFO configurations
+         BRAM_EN_G           => true,
+         GEN_SYNC_FIFO_G     => true,
+         FIFO_ADDR_WIDTH_G   => 10,
+         FIFO_FIXED_THRESH_G => true,
+         FIFO_PAUSE_THRESH_G => 1020,
+         -- AXI Stream Port Configurations
+         SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
+         MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
+       port map (
+         -- Slave Port
+         sAxisClk    => pgpClk,
+         sAxisRst    => pgpRst,
+         sAxisMaster => intPgpRxMasters(0),
+         sAxisCtrl   => intPgpRxCtrl   (0),
+         -- Master Port
+         mAxisClk    => dmaClk,
+         mAxisRst    => dmaRst,
+         mAxisMaster => dmaIbMaster,
+         mAxisSlave  => dmaIbSlave);
+   end generate;
+   
 end mapping;

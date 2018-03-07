@@ -46,6 +46,7 @@ package MigPkg is
       readMasterBusy   : sl;
       blocksQueued     : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
       blocksFree       : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
+      writeQueCnt      : slv(7 downto 0);
    end record;
 
    constant MIG_STATUS_INIT_C : MigStatusType := (
@@ -53,7 +54,8 @@ package MigPkg is
       writeSlaveBusy  => '0',
       readMasterBusy  => '0',
       blocksQueued    => (others=>'0'),
-      blocksFree      => (others=>'0') );
+      blocksFree      => (others=>'0'),
+      writeQueCnt     => (others=>'0') );
 
    -- Array
    type MigStatusArray is array (natural range<>) of MigStatusType;

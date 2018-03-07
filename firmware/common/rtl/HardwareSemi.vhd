@@ -2,7 +2,7 @@
 -- File       : HardwareSemi.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2018-02-25
+-- Last update: 2018-03-04
 -------------------------------------------------------------------------------
 -- Description: HardwareSemi File
 -------------------------------------------------------------------------------
@@ -54,6 +54,7 @@ entity HardwareSemi is
       dmaIbMasters    : out AxiStreamMasterArray(3 downto 0);
       dmaIbSlaves     : in  AxiStreamSlaveArray (3 downto 0);
       dmaIbAlmostFull : in  slv                 (3 downto 0);
+      dmaIbFull       : in  slv                 (3 downto 0);
       ---------------------
       --  HardwareSemi Ports
       ---------------------    
@@ -95,7 +96,8 @@ architecture mapping of HardwareSemi is
 begin
 
    dmaClks <= idmaClks;
-  
+   dmaRsts <= idmaRsts;
+   
    ---------------------
    -- AXI-Lite Crossbar
    ---------------------
@@ -125,7 +127,7 @@ begin
       generic map (
          TPD_G            => TPD_G,
          REFCLK_WIDTH_G   => 1,
-         NUM_VC_G         => 4,        
+         NUM_VC_G         => 1,        
          AXI_ERROR_RESP_G => AXI_ERROR_RESP_G,
          AXI_BASE_ADDR_G  => AXI_BASE_ADDR_G)
       port map (
@@ -143,6 +145,12 @@ begin
          dmaObSlaves     => intObSlaves ,
          dmaIbMasters    => dmaIbMasters,
          dmaIbSlaves     => dmaIbSlaves ,
+         dmaIbFull       => dmaIbFull   ,
+         -- OOB Signals
+         txOpCodeEn      => txOpCodeEn,
+         txOpCode        => txOpCode,
+         rxOpCodeEn      => rxOpCodeEn,
+         rxOpCode        => rxOpCode,
          -- AXI-Lite Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,

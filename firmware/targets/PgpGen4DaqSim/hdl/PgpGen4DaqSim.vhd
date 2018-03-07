@@ -88,7 +88,7 @@ begin
   pcie_wdata <= pcieWriteMaster.wdata(255 downto 0);
   
   GEN_LANES : for i in 0 to LANES_C-1 generate
-    U_DUT : entity work.AppToMigWrapper
+    U_DUT : entity work.AppToMigWrapperO
       generic map ( AXI_STREAM_CONFIG_G => sAxisConfig,
                     AXI_BASE_ADDR_G     => ite( i mod 2 = 0, x"00000000", x"80000000") )
       port map ( sAxisClk        => axisClk,
@@ -221,7 +221,7 @@ begin
         wait until axilDone = '1';
       end if;
 
-      for i in 0 to 359 loop
+      for i in 0 to 15 loop
         wait until (axisClk = '1' and (sAxisMasters(k).tValid = '0' or sAxisSlaves(k).tReady = '1'));
         wait until axisClk = '0';
         sAxisMasters(k).tValid <= '1';
@@ -299,15 +299,15 @@ begin
     wait until axiRst='0';
     wait for 20 ns;
 
-    wreg(64,x"ABCD0000"); -- Descriptor pages addr(31:0)
-    wreg(68,x"00000000"); -- Descriptor pages addr(39:32)
+    wreg(128,x"ABCD0000"); -- Descriptor pages addr(31:0)
+    wreg(132,x"00000000"); -- Descriptor pages addr(39:32)
     for i in 16 to 25 loop
       phyAddr := toSlv(15,24) & toSlv(i,19) & toSlv(0,21); -- 2MB buffers
-      wreg(72,phyAddr(31 downto 0));
-      wreg(76,toSlv(i,24) & phyAddr(39 downto 32));
+      wreg(136,phyAddr(31 downto 0));
+      wreg(140,toSlv(i,24) & phyAddr(39 downto 32));
     end loop;
     for i in 1 to LANES_C-1 loop
-      wreg(128+i*32,x"00000000");  -- Set lanes to receive to app 0
+      wreg(256+i*32,x"00000000");  -- Set lanes to receive to app 0
     end loop;
 
     wreg(20, x"ABABA000");  -- monBaseAddr
@@ -325,12 +325,10 @@ begin
         wait until pcieDescValid = '1';
       end if;
       phyAddr := toSlv(15,24) & pcieDescDout(18 downto 0) & toSlv(0,21); -- 2MB buffers
-      wreg(72,phyAddr(31 downto 0));
-      wreg(76,x"0" & pcieDescDout(19 downto 0) & phyAddr(39 downto 32));
+      wreg(136,phyAddr(31 downto 0));
+      wreg(140,x"0" & pcieDescDout(19 downto 0) & phyAddr(39 downto 32));
       pcieDescRd <= '1';
       wait until pcieClk = '1';
-
-      wreg(128,x"00000000");  -- Set lane 0 to receive to app 0
     end loop;
 
     wait;

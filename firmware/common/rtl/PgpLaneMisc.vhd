@@ -2,7 +2,7 @@
 -- File       : PgpLaneMisc.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-11-14
--- Last update: 2018-02-22
+-- Last update: 2018-03-04
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -30,6 +30,8 @@ entity PgpLaneMisc is
    port (
       pgpClk          : in  sl;
       pgpRst          : in  sl;
+      pgpFrameDrop    : in  sl;
+      pgpFrameTrunc   : in  sl;
       pgpRxVcBlowoff  : out slv(15 downto 0);
       pgpRxLoopback   : out slv( 2 downto 0);
       pgpRxReset      : out sl;
@@ -48,6 +50,7 @@ architecture rtl of PgpLaneMisc is
       pgpRxVcBlowoff : slv(15 downto 0);
       pgpRxLoopback  : slv( 2 downto 0);
       pgpRxReset     : sl;
+      cntRst         : sl;
       axilReadSlave  : AxiLiteReadSlaveType;
       axilWriteSlave : AxiLiteWriteSlaveType;
    end record;
@@ -56,18 +59,32 @@ architecture rtl of PgpLaneMisc is
       pgpRxVcBlowoff => (others => '0'),
       pgpRxLoopback  => (others => '0'),
       pgpRxReset     => '0',
+      cntRst         => '0',
       axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
       axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
 
+   signal cntv : SlVectorArray(1 downto 0, 31 downto 0);
+   
    signal r   : RegType := REG_INIT_C;
    signal rin : RegType;
 
 begin
 
+   U_SyncStatus : entity work.SyncStatusVector
+     generic map ( WIDTH_G => 2 )
+     port map ( statusIn(0)  => pgpFrameDrop,
+                statusIn(1)  => pgpFrameTrunc,
+                cntRstIn     => r.cntRst,
+                rollOverEnIn => (others=>'1'),
+                cntOut       => cntv,
+                wrClk        => pgpClk,
+                rdClk        => axilClk,
+                rdRst        => axilRst );
+
    --------------------- 
    -- AXI Lite Interface
    --------------------- 
-   comb : process (axilReadMaster, axilRst, axilWriteMaster, r) is
+   comb : process (axilReadMaster, axilRst, axilWriteMaster, r, cntv) is
       variable v      : RegType;
       variable regCon : AxiLiteEndPointType;
    begin
@@ -78,9 +95,15 @@ begin
       axiSlaveWaitTxn(regCon, axilWriteMaster, axilReadMaster, v.axilWriteSlave, v.axilReadSlave);
 
       -- Map the read registers
-      axiSlaveRegister(regCon, x"00", 0, v.pgpRxVcBlowoff);
-      axiSlaveRegister(regCon, x"00",16, v.pgpRxLoopback);
-      axiSlaveRegister(regCon, x"00",31, v.pgpRxReset);
+      axiSlaveRegister (regCon, x"00", 0, v.pgpRxVcBlowoff);
+      axiSlaveRegister (regCon, x"00",16, v.pgpRxLoopback);
+      axiSlaveRegister (regCon, x"00",31, v.pgpRxReset);
+
+      v.cntRst := '0';
+      axiWrDetect   (regCon, x"04", v.cntRst);
+      
+      axiSlaveRegisterR(regCon, x"08",0, muxSlVectorArray(cntv, 0));
+      axiSlaveRegisterR(regCon, x"0C",0, muxSlVectorArray(cntv, 1));
 
       -- Closeout the transaction
       axiSlaveDefault(regCon, v.axilWriteSlave, v.axilReadSlave, AXI_ERROR_RESP_G);

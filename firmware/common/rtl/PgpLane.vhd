@@ -2,7 +2,7 @@
 -- File       : PgpLane.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2018-02-22
+-- Last update: 2018-03-04
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -51,6 +51,7 @@ entity PgpLane is
       dmaObSlave      : out AxiStreamSlaveType;
       dmaIbMaster     : out AxiStreamMasterType;
       dmaIbSlave      : in  AxiStreamSlaveType;
+      dmaIbFull       : in  sl;
        -- OOB Signals (dmaClk domain)
       txOpCodeEn      : in  sl;
       txOpCode        : in  slv(7 downto 0);
@@ -113,7 +114,9 @@ architecture mapping of PgpLane is
    signal pgpTxIn      : Pgp3TxInType  := PGP3_TX_IN_INIT_C;
    signal pgpRxIn      : Pgp3RxInType  := PGP3_RX_IN_INIT_C;
    signal pgpRxOut     : Pgp3RxOutType;
-   
+
+   signal pgpRxIn_frameDrop  : sl;
+   signal pgpRxIn_frameTrunc : sl;
 begin
 
    dmaClk <= pgpClk;
@@ -242,6 +245,9 @@ begin
          dmaRst       => pgpRst,
          dmaIbMaster  => dmaIbMaster,
          dmaIbSlave   => dmaIbSlave,
+         dmaIbFull    => dmaIbFull,
+         frameDrop    => pgpRxIn_frameDrop,
+         frameTrunc   => pgpRxIn_frameTrunc,
          -- PGP RX Interface (pgpRxClk domain)
          pgpClk       => pgpClk,
          pgpRst       => pgpRst,
@@ -261,6 +267,8 @@ begin
          pgpRxVcBlowoff  => pgpRxVcBlowoff,
          pgpRxLoopback   => pgpRxIn.loopback,
          pgpRxReset      => pgpRxIn.resetRx,
+         pgpFrameDrop    => pgpRxIn_frameDrop,
+         pgpFrameTrunc   => pgpRxIn_frameTrunc,
          -- AXI-Lite Register Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,

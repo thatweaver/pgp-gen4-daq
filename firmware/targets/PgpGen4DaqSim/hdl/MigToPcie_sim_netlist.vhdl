@@ -1,10 +1,10 @@
 -- Copyright 1986-2017 Xilinx, Inc. All Rights Reserved.
 -- --------------------------------------------------------------------------------
 -- Tool Version: Vivado v.2017.4 (lin64) Build 2086221 Fri Dec 15 20:54:30 MST 2017
--- Date        : Tue Feb 20 15:11:04 2018
+-- Date        : Tue Feb 20 15:11:00 2018
 -- Host        : pslab01.slac.stanford.edu running 64-bit Red Hat Enterprise Linux Server release 7.2 (Maipo)
--- Command     : write_vhdl -force -mode funcsim
---               /u1/weaver/pgp-gen4-daq/firmware/targets/PgpGen4Daq/coregen/MigToPcie/MigToPcie_sim_netlist.vhdl
+-- Command     : write_vhdl -force -mode funcsim -rename_top MigToPcie -prefix
+--               MigToPcie_ MigToPcie_sim_netlist.vhdl
 -- Design      : MigToPcie
 -- Purpose     : This VHDL netlist is a functional simulation representation of the design and should not be modified or
 --               synthesized. This netlist cannot be used for SDF annotated simulation.
@@ -46,8 +46,6 @@ entity MigToPcie_axi_datamover_mssai_skid_buf is
     sig_m_valid_dup_reg_0 : in STD_LOGIC;
     \sig_data_reg_out_reg[127]_0\ : in STD_LOGIC_VECTOR ( 127 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_mssai_skid_buf : entity is "axi_datamover_mssai_skid_buf";
 end MigToPcie_axi_datamover_mssai_skid_buf;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_mssai_skid_buf is
@@ -5215,8 +5213,6 @@ entity MigToPcie_axi_datamover_pcc is
     Q : in STD_LOGIC_VECTOR ( 0 to 0 );
     mm2s_dbg_sel : in STD_LOGIC_VECTOR ( 0 to 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_pcc : entity is "axi_datamover_pcc";
 end MigToPcie_axi_datamover_pcc;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_pcc is
@@ -18982,8 +18978,6 @@ entity MigToPcie_axi_datamover_rd_status_cntl is
     mm2s_dbg_sel : in STD_LOGIC_VECTOR ( 0 to 0 );
     D : in STD_LOGIC_VECTOR ( 3 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_rd_status_cntl : entity is "axi_datamover_rd_status_cntl";
 end MigToPcie_axi_datamover_rd_status_cntl;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_rd_status_cntl is
@@ -19249,8 +19243,6 @@ entity MigToPcie_axi_datamover_reset is
     sig_data2rst_stop_cmplt : in STD_LOGIC;
     s2mm_halt : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_reset : entity is "axi_datamover_reset";
 end MigToPcie_axi_datamover_reset;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_reset is
@@ -19497,8 +19489,6 @@ entity MigToPcie_axi_datamover_skid2mm_buf is
     \sig_next_strt_strb_reg_reg[15]\ : in STD_LOGIC_VECTOR ( 15 downto 0 );
     \sig_strb_skid_reg_reg[15]_0\ : in STD_LOGIC_VECTOR ( 15 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_skid2mm_buf : entity is "axi_datamover_skid2mm_buf";
 end MigToPcie_axi_datamover_skid2mm_buf;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_skid2mm_buf is
@@ -24122,8 +24112,6 @@ entity MigToPcie_axi_datamover_skid_buf is
     s_axis_s2mm_tkeep : in STD_LOGIC_VECTOR ( 15 downto 0 );
     s_axis_s2mm_tdata : in STD_LOGIC_VECTOR ( 127 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_skid_buf : entity is "axi_datamover_skid_buf";
 end MigToPcie_axi_datamover_skid_buf;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_skid_buf is
@@ -34061,8 +34049,6 @@ entity MigToPcie_axi_datamover_slice is
     sig_stream_rst : in STD_LOGIC;
     \sig_fifo_mssai_reg[3]\ : in STD_LOGIC_VECTOR ( 3 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_slice : entity is "axi_datamover_slice";
 end MigToPcie_axi_datamover_slice;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_slice is
@@ -35237,8 +35223,6 @@ entity MigToPcie_cntr_incr_decr_addn_f is
     sig_stream_rst : in STD_LOGIC;
     m_axi_s2mm_aclk : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_cntr_incr_decr_addn_f : entity is "cntr_incr_decr_addn_f";
 end MigToPcie_cntr_incr_decr_addn_f;
 
 architecture STRUCTURE of MigToPcie_cntr_incr_decr_addn_f is
@@ -37085,8 +37069,6 @@ entity MigToPcie_dynshreg_f is
     Q : in STD_LOGIC_VECTOR ( 1 downto 0 );
     m_axi_s2mm_aclk : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_dynshreg_f : entity is "dynshreg_f";
 end MigToPcie_dynshreg_f;
 
 architecture STRUCTURE of MigToPcie_dynshreg_f is
@@ -49532,8 +49514,6 @@ entity MigToPcie_xpm_fifo_reg_bit is
     \gen_rst_cc.fifo_wr_rst_i_reg\ : in STD_LOGIC;
     wr_clk : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_xpm_fifo_reg_bit : entity is "xpm_fifo_reg_bit";
 end MigToPcie_xpm_fifo_reg_bit;
 
 architecture STRUCTURE of MigToPcie_xpm_fifo_reg_bit is
@@ -49644,8 +49624,6 @@ entity MigToPcie_xpm_fifo_rst is
     rd_en : in STD_LOGIC;
     ram_empty_i : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_xpm_fifo_rst : entity is "xpm_fifo_rst";
 end MigToPcie_xpm_fifo_rst;
 
 architecture STRUCTURE of MigToPcie_xpm_fifo_rst is
@@ -50370,8 +50348,6 @@ entity MigToPcie_xpm_memory_base is
   attribute MESSAGE_CONTROL of MigToPcie_xpm_memory_base : entity is 0;
   attribute NUM_CHAR_LOC : integer;
   attribute NUM_CHAR_LOC of MigToPcie_xpm_memory_base : entity is 0;
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_xpm_memory_base : entity is "xpm_memory_base";
   attribute P_ECC_MODE : string;
   attribute P_ECC_MODE of MigToPcie_xpm_memory_base : entity is "no_ecc";
   attribute P_ENABLE_BYTE_WRITE_A : integer;
@@ -53088,8 +53064,6 @@ entity MigToPcie_srl_fifo_rbu_f is
     s2mm_dbg_sel : in STD_LOGIC_VECTOR ( 0 to 0 );
     s_axis_s2mm_cmd_tdata : in STD_LOGIC_VECTOR ( 66 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_srl_fifo_rbu_f : entity is "srl_fifo_rbu_f";
 end MigToPcie_srl_fifo_rbu_f;
 
 architecture STRUCTURE of MigToPcie_srl_fifo_rbu_f is
@@ -54473,8 +54447,6 @@ entity MigToPcie_xpm_fifo_base is
   attribute FULL_RESET_VALUE of MigToPcie_xpm_fifo_base : entity is 0;
   attribute FULL_RST_VAL : string;
   attribute FULL_RST_VAL of MigToPcie_xpm_fifo_base : entity is "1'b0";
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_xpm_fifo_base : entity is "xpm_fifo_base";
   attribute PE_THRESH_ADJ : integer;
   attribute PE_THRESH_ADJ of MigToPcie_xpm_fifo_base : entity is 8;
   attribute PE_THRESH_MAX : integer;
@@ -57854,8 +57826,6 @@ entity MigToPcie_srl_fifo_f is
     s2mm_dbg_sel : in STD_LOGIC_VECTOR ( 0 to 0 );
     s_axis_s2mm_cmd_tdata : in STD_LOGIC_VECTOR ( 66 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_srl_fifo_f : entity is "srl_fifo_f";
 end MigToPcie_srl_fifo_f;
 
 architecture STRUCTURE of MigToPcie_srl_fifo_f is
@@ -58606,8 +58576,6 @@ entity MigToPcie_xpm_fifo_sync is
     sig_m_valid_dup_reg : in STD_LOGIC;
     \INFERRED_GEN.cnt_i_reg[2]\ : in STD_LOGIC_VECTOR ( 0 to 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_xpm_fifo_sync : entity is "xpm_fifo_sync";
 end MigToPcie_xpm_fifo_sync;
 
 architecture STRUCTURE of MigToPcie_xpm_fifo_sync is
@@ -59727,8 +59695,6 @@ entity MigToPcie_axi_datamover_fifo is
     s2mm_dbg_sel : in STD_LOGIC_VECTOR ( 0 to 0 );
     s_axis_s2mm_cmd_tdata : in STD_LOGIC_VECTOR ( 66 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_fifo : entity is "axi_datamover_fifo";
 end MigToPcie_axi_datamover_fifo;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_fifo is
@@ -60920,8 +60886,6 @@ entity MigToPcie_sync_fifo_fg is
     sig_m_valid_dup_reg : in STD_LOGIC;
     \INFERRED_GEN.cnt_i_reg[2]\ : in STD_LOGIC_VECTOR ( 0 to 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_sync_fifo_fg : entity is "sync_fifo_fg";
 end MigToPcie_sync_fifo_fg;
 
 architecture STRUCTURE of MigToPcie_sync_fifo_fg is
@@ -61110,8 +61074,6 @@ entity MigToPcie_axi_datamover_addr_cntl is
     m_axi_mm2s_arready : in STD_LOGIC;
     \in\ : in STD_LOGIC_VECTOR ( 44 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_addr_cntl : entity is "axi_datamover_addr_cntl";
 end MigToPcie_axi_datamover_addr_cntl;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_addr_cntl is
@@ -62441,8 +62403,6 @@ entity MigToPcie_axi_datamover_cmd_status is
     s_axis_s2mm_cmd_tdata : in STD_LOGIC_VECTOR ( 66 downto 0 );
     \GEN_OMIT_INDET_BTT.sig_coelsc_okay_reg_reg\ : in STD_LOGIC_VECTOR ( 0 to 7 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_cmd_status : entity is "axi_datamover_cmd_status";
 end MigToPcie_axi_datamover_cmd_status;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_cmd_status is
@@ -62618,8 +62578,6 @@ entity MigToPcie_axi_datamover_rddata_cntl is
     sig_sstrb_stop_mask : in STD_LOGIC_VECTOR ( 0 to 0 );
     \in\ : in STD_LOGIC_VECTOR ( 44 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_rddata_cntl : entity is "axi_datamover_rddata_cntl";
 end MigToPcie_axi_datamover_rddata_cntl;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_rddata_cntl is
@@ -64144,8 +64102,6 @@ entity MigToPcie_axi_datamover_sfifo_autord is
     sig_m_valid_dup_reg : in STD_LOGIC;
     \INFERRED_GEN.cnt_i_reg[2]\ : in STD_LOGIC_VECTOR ( 0 to 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_sfifo_autord : entity is "axi_datamover_sfifo_autord";
 end MigToPcie_axi_datamover_sfifo_autord;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_sfifo_autord is
@@ -64341,8 +64297,6 @@ entity MigToPcie_axi_datamover_wr_status_cntl is
     m_axi_s2mm_bresp : in STD_LOGIC_VECTOR ( 1 downto 0 );
     \in\ : in STD_LOGIC_VECTOR ( 0 to 6 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_wr_status_cntl : entity is "axi_datamover_wr_status_cntl";
 end MigToPcie_axi_datamover_wr_status_cntl;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_wr_status_cntl is
@@ -64846,8 +64800,6 @@ entity MigToPcie_axi_datamover_wrdata_cntl is
     sig_len_fifo_full : in STD_LOGIC;
     sig_calc_error_reg_reg : in STD_LOGIC_VECTOR ( 43 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_wrdata_cntl : entity is "axi_datamover_wrdata_cntl";
 end MigToPcie_axi_datamover_wrdata_cntl;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_wrdata_cntl is
@@ -66800,8 +66752,6 @@ entity MigToPcie_axi_datamover_rd_sf is
     m_axis_mm2s_tready : in STD_LOGIC;
     sig_m_valid_dup_reg : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_rd_sf : entity is "axi_datamover_rd_sf";
 end MigToPcie_axi_datamover_rd_sf;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_rd_sf is
@@ -67035,8 +66985,6 @@ entity MigToPcie_axi_datamover_wr_sf is
     s2mm_wr_len : in STD_LOGIC_VECTOR ( 4 downto 0 );
     E : in STD_LOGIC_VECTOR ( 0 to 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_wr_sf : entity is "axi_datamover_wr_sf";
 end MigToPcie_axi_datamover_wr_sf;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_wr_sf is
@@ -67576,8 +67524,6 @@ entity MigToPcie_axi_datamover_mm2s_full_wrap is
     m_axi_mm2s_arready : in STD_LOGIC;
     s_axis_mm2s_cmd_tdata : in STD_LOGIC_VECTOR ( 66 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_mm2s_full_wrap : entity is "axi_datamover_mm2s_full_wrap";
 end MigToPcie_axi_datamover_mm2s_full_wrap;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_mm2s_full_wrap is
@@ -67997,8 +67943,6 @@ entity MigToPcie_axi_datamover_s2mm_scatter is
     \INFERRED_GEN.cnt_i_reg[2]\ : in STD_LOGIC_VECTOR ( 0 to 0 );
     \sig_data_reg_out_reg[127]\ : in STD_LOGIC_VECTOR ( 127 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_s2mm_scatter : entity is "axi_datamover_s2mm_scatter";
 end MigToPcie_axi_datamover_s2mm_scatter;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_s2mm_scatter is
@@ -70138,8 +70082,6 @@ entity MigToPcie_axi_datamover_s2mm_realign is
     \in\ : in STD_LOGIC_VECTOR ( 25 downto 0 );
     D : in STD_LOGIC_VECTOR ( 127 downto 0 )
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_s2mm_realign : entity is "axi_datamover_s2mm_realign";
 end MigToPcie_axi_datamover_s2mm_realign;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_s2mm_realign is
@@ -70350,8 +70292,6 @@ entity MigToPcie_axi_datamover_s2mm_full_wrap is
     m_axi_s2mm_bresp : in STD_LOGIC_VECTOR ( 1 downto 0 );
     s2mm_halt : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover_s2mm_full_wrap : entity is "axi_datamover_s2mm_full_wrap";
 end MigToPcie_axi_datamover_s2mm_full_wrap;
 
 architecture STRUCTURE of MigToPcie_axi_datamover_s2mm_full_wrap is
@@ -71038,8 +70978,6 @@ entity MigToPcie_axi_datamover is
   attribute C_S2MM_SUPPORT_INDET_BTT of MigToPcie_axi_datamover : entity is 0;
   attribute C_S_AXIS_S2MM_TDATA_WIDTH : integer;
   attribute C_S_AXIS_S2MM_TDATA_WIDTH of MigToPcie_axi_datamover : entity is 128;
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of MigToPcie_axi_datamover : entity is "axi_datamover";
   attribute downgradeipidentifiedwarnings : string;
   attribute downgradeipidentifiedwarnings of MigToPcie_axi_datamover : entity is "yes";
 end MigToPcie_axi_datamover;

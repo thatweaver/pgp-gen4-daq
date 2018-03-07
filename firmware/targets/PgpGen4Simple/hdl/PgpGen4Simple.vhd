@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-03-02
+-- Last update: 2018-03-04
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -157,6 +157,7 @@ architecture top_level of PgpGen4Simple is
    signal hwIbMasters     : AxiStreamMasterArray(7 downto 0);
    signal hwIbSlaves      : AxiStreamSlaveArray (7 downto 0);
    signal hwIbAlmostFull  : slv                 (7 downto 0);
+   signal hwIbFull        : slv                 (7 downto 0);
    
    signal memReady        : slv                (3 downto 0);
    signal memWriteMasters : AxiWriteMasterArray(7 downto 0);
@@ -409,6 +410,7 @@ begin
          dmaIbMasters    => hwIbMasters   (4*i+3 downto 4*i),
          dmaIbSlaves     => hwIbSlaves    (4*i+3 downto 4*i),
          dmaIbAlmostFull => hwIbAlmostFull(4*i+3 downto 4*i),
+         dmaIbFull       => hwIbFull      (4*i+3 downto 4*i),
          ------------------
          --  Hardware Ports
          ------------------       
@@ -431,13 +433,14 @@ begin
                     sAxisRst        => hwRsts         (j),
                     sAxisMaster     => hwIbMasters    (j),
                     sAxisSlave      => hwIbSlaves     (j),
-                    sPause          => hwIbAlmostFull (j),
+                    sAlmostFull     => hwIbAlmostFull (j),
+                    sFull           => hwIbFull       (j),
                     mAxiClk         => clk200     (i),
                     mAxiRst         => urst200    (i),
                     mAxiWriteMaster => memWriteMasters(j),
                     mAxiWriteSlave  => memWriteSlaves (j),
-                    dscWriteMaster  => dscMasters     (j),
-                    dscWriteSlave   => dscSlaves      (j),
+                    dscReadMaster   => dscMasters     (j),
+                    dscReadSlave    => dscSlaves      (j),
                     memReady        => memReady       (j/2),
                     config          => migConfig      (j),
                     status          => migStatus      (j) );
