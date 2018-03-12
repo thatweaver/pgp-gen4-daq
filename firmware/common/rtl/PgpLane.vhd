@@ -2,7 +2,7 @@
 -- File       : PgpLane.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2018-03-04
+-- Last update: 2018-03-11
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -156,7 +156,8 @@ begin
          NUM_VC_G          => NUM_VC_G,
          AXIL_CLK_FREQ_G   => (SYS_CLK_FREQ_C/2.0),
          AXIL_BASE_ADDR_G  => AXI_CONFIG_C(PGP_INDEX_C).baseAddr,
-         AXIL_ERROR_RESP_G => AXI_ERROR_RESP_G)
+         AXIL_ERROR_RESP_G => AXI_ERROR_RESP_G )
+--         DEBUG_G           => (LANE_G=0) )
       port map (
          -- Stable Clock and Reset
          stableClk       => axilClk,
@@ -178,7 +179,7 @@ begin
          pgpRxIn         => pgpRxIn,
          pgpRxOut        => pgpRxOut,
          -- Non VC Tx Signals
-         pgpTxIn         => PGP3_TX_IN_INIT_C,
+         pgpTxIn         => pgpTxIn,
          pgpTxOut        => pgpTxOut,
          -- Frame Transmit Interface
          pgpTxMasters    => pgpTxMasters,
@@ -325,16 +326,18 @@ begin
          sAxilReadMaster  => axilReadMasters(TX_MON_INDEX_C),
          sAxilReadSlave   => axilReadSlaves(TX_MON_INDEX_C));
 
-   U_TxOpCode : entity work.SynchronizerFifo
-     generic map ( DATA_WIDTH_G => 8,
-                   ADDR_WIDTH_G => 2 )
-     port map ( rst    => pgpRst,
-                wr_clk => pgpClk,
-                wr_en  => txOpCodeEn,
-                din    => txOpCode,
-                rd_clk => pgpClk,
-                valid  => pgpTxIn.opCodeEn,
-                dout   => pgpTxIn.opCodeData(7 downto 0) );
+   --U_TxOpCode : entity work.SynchronizerFifo
+   --  generic map ( DATA_WIDTH_G => 8,
+   --                ADDR_WIDTH_G => 2 )
+   --  port map ( rst    => pgpRst,
+   --             wr_clk => pgpClk,
+   --             wr_en  => txOpCodeEn,
+   --             din    => txOpCode,
+   --             rd_clk => pgpClk,
+   --             valid  => pgpTxIn.opCodeEn,
+   --             dout   => pgpTxIn.opCodeData(7 downto 0) );
    pgpTxIn.opCodeNumber <= toSlv(1,3);
+   pgpTxIn.opCodeEn     <= txOpCodeEn;
+   pgpTxIn.opCodeData(7 downto 0) <= txOpCode;
 
 end mapping;

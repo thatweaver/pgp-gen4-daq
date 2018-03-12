@@ -2,7 +2,7 @@
 -- File       : PgpLaneRx.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-26
--- Last update: 2018-03-06
+-- Last update: 2018-03-10
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -104,8 +104,8 @@ begin
            INT_PIPE_STAGES_G   => 1,
            PIPE_STAGES_G       => 1,
            SLAVE_READY_EN_G    => false,
-           VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
-           VALID_BURST_MODE_G  => true,
+--           VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
+--           VALID_BURST_MODE_G  => true,
            -- FIFO configurations
            BRAM_EN_G           => true,
            GEN_SYNC_FIFO_G     => true,
@@ -114,7 +114,7 @@ begin
            FIFO_PAUSE_THRESH_G => 1020,
            -- AXI Stream Port Configurations
            SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
-           MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
+           MASTER_AXI_CONFIG_G => PGP3_AXIS_CONFIG_C)
          port map (
            -- Slave Port
            sAxisClk    => pgpClk,
@@ -163,8 +163,8 @@ begin
          GEN_SYNC_FIFO_G     => false,
          FIFO_ADDR_WIDTH_G   => 9,
          -- AXI Stream Port Configurations
-         SLAVE_AXI_CONFIG_G  => DMA_AXIS_CONFIG_C,
-         MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
+         SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
+         MASTER_AXI_CONFIG_G => PGP3_AXIS_CONFIG_C)
        port map (
          -- Slave Port
          sAxisClk    => pgpClk,
@@ -182,7 +182,7 @@ begin
    GEN_NOMUX : if NUM_VC_G < 2 generate
 
      PGP_FLOW : entity work.AxiStreamFlow
-       generic map ( DEBUG_G => true )
+       generic map ( DEBUG_G => LANE_G=0 )
        port map (
          clk         => pgpClk,
          rst         => pgpRst,
@@ -201,8 +201,8 @@ begin
          INT_PIPE_STAGES_G   => 1,
          PIPE_STAGES_G       => 1,
          SLAVE_READY_EN_G    => false,
-         VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
-         VALID_BURST_MODE_G  => true,
+--         VALID_THOLD_G       => 128,  -- Hold until enough to burst into the interleaving MUX
+--         VALID_BURST_MODE_G  => true,
          -- FIFO configurations
          BRAM_EN_G           => true,
          GEN_SYNC_FIFO_G     => true,
@@ -211,7 +211,7 @@ begin
          FIFO_PAUSE_THRESH_G => 1020,
          -- AXI Stream Port Configurations
          SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
-         MASTER_AXI_CONFIG_G => DMA_AXIS_CONFIG_C)
+         MASTER_AXI_CONFIG_G => PGP3_AXIS_CONFIG_C)
        port map (
          -- Slave Port
          sAxisClk    => pgpClk,

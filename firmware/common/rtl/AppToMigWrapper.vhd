@@ -2,7 +2,7 @@
 -- File       : AppToMigWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-03-06
+-- Last update: 2018-03-11
 -------------------------------------------------------------------------------
 -- Description: Wrapper for Xilinx Axi Data Mover
 -- Axi stream input (dscReadMasters.command) launches an AxiReadMaster to
@@ -29,11 +29,11 @@ use work.AxiPkg.all;
 use work.AxiLitePkg.all;
 use work.AxiStreamPkg.all;
 use work.AxiDescPkg.all;
+use work.Pgp3Pkg.all;
 use work.MigPkg.all;
 
 entity AppToMigWrapper is
-  generic ( AXI_STREAM_CONFIG_G : AxiStreamConfigType;
-            AXI_BASE_ADDR_G     : slv(31 downto 0) := (others=>'0');
+  generic ( AXI_BASE_ADDR_G     : slv(31 downto 0) := (others=>'0');
             DEBUG_G             : boolean          := false );
   port    ( -- Clock and reset
     sAxisClk         : in  sl; -- 156MHz
@@ -125,6 +125,7 @@ architecture mapping of AppToMigWrapper is
     wrTransfer     : sl;
     wrTransferAddr : slv(BIS-1 downto 0);
     wrTransferDin  : slv(22 downto 0);
+    rdenb          : sl;
     locMaster      : AxiDescMasterType;
     remMaster      : AxiDescMasterType;
     blocksFree     : slv(BIS-1 downto 0);
@@ -144,6 +145,7 @@ architecture mapping of AppToMigWrapper is
     wrTransfer     => '0',
     wrTransferAddr => (others=>'0'),
     wrTransferDin  => (others=>'0'),
+    rdenb          => '0',
     locMaster      => AXI_DESC_MASTER_INIT_C,
     remMaster      => AXI_DESC_MASTER_INIT_C,
     blocksFree     => (others=>'0'),
@@ -163,6 +165,7 @@ architecture mapping of AppToMigWrapper is
   
   signal imAxiWriteMaster : AxiWriteMasterType := AXI_WRITE_MASTER_INIT_C;
 
+  -- DMA AXI Stream Configuration
   constant AXIO_STREAM_CONFIG_C : AxiStreamConfigType := (
       TSTRB_EN_C    => false,
       TDATA_BYTES_C => 16,
@@ -181,7 +184,10 @@ architecture mapping of AppToMigWrapper is
   signal sframecnt     : slv(7 downto 0) := (others=>'0');
   signal sframecnt_err : sl := '0';
   signal sBlocksFree   : slv(BIS-1 downto 0);
-  
+
+  signal rdenb          : sl;
+  signal rdTransferAddr : slv(BIS-1 downto 0);  -- read complete
+
 begin
 
   GEN_DEBUG : if DEBUG_G generate
@@ -219,7 +225,14 @@ begin
                  probe0(159 downto 128)  => intDscWriteSlave .status .tData(31 downto 0),
                  probe0(160)             => intDscWriteMaster.status .tReady,
                  probe0(161)             => r.remMaster.command.tValid,
-                 probe0(233 downto 162)  => r.remMaster.command.tData(71 downto 0),
+                 probe0(184 downto 162)  => r.remMaster.command.tData(22 downto 0),
+                 probe0(196 downto 185)  => r.remMaster.command.tData(63 downto 52),
+                 probe0(197)             => r.rdenb,
+                 probe0(201 downto 198)  => r.wrIndex(3 downto 0),
+                 probe0(205 downto 202)  => r.wcIndex(3 downto 0),
+                 probe0(209 downto 206)  => r.rdIndex(3 downto 0),
+                 probe0(210)             => '0',
+                 probe0(233 downto 211)  => doutTransfer,
                  probe0(234)             => dscReadSlave.command.tReady,
                  probe0(235)             => s2mm_err,
                  probe0(236)             => r.framecnt_err,
@@ -233,7 +246,7 @@ begin
   mAxiWriteMaster           <= imAxiWriteMaster;
   
   mPause <= '1' when (r.blocksFree < config.blocksPause) else '0';
-  mFull  <= '1' when (r.blocksFree < 4) else '0';
+  mFull  <= '1' when ((r.blocksFree < 4) or (config.inhibit='1')) else '0';
 
   U_Free  : entity work.SynchronizerFifo
     generic map ( DATA_WIDTH_G => BIS )
@@ -265,7 +278,7 @@ begin
   --
   U_AxisFifo : entity work.AxiStreamFifo
     generic map ( FIFO_ADDR_WIDTH_G   => 8,
-                  SLAVE_AXI_CONFIG_G  => AXI_STREAM_CONFIG_G,
+                  SLAVE_AXI_CONFIG_G  => PGP3_AXIS_CONFIG_C,
                   MASTER_AXI_CONFIG_G => AXIO_STREAM_CONFIG_C )
     port map ( sAxisClk    => sAxisClk,
                sAxisRst    => sAxisRst,
@@ -329,7 +342,8 @@ begin
                addra      => r.wrTransferAddr,
                dina       => r.wrTransferDin,
                clkb       => mAxiClk,
-               addrb      => rin.rdIndex,
+               enb        => rdenb,
+               addrb      => rdTransferAddr,
                doutb      => doutTransfer );
 
   comb : process ( r, mAxiRst,
@@ -347,6 +361,7 @@ begin
     variable raddr   : slv(31 downto 0);
     variable stag    : slv( 3 downto 0);
     variable itag    : integer;
+    variable axiRstQ : slv( 2 downto 0) := (others=>'1');
   begin
     v := r;
 
@@ -421,8 +436,9 @@ begin
     if dscReadSlave.command.tReady = '1' then
       v.remMaster.command.tValid := '0';
     end if;
-    
+
     if (v.remMaster.command.tValid = '0' and
+        r.rdenb ='1' and
         r.rdIndex /= r.wcIndex) then
       raddr   := resize(r.rdIndex & toSlv(0,i), 32) + AXI_BASE_ADDR_G;
       rlen                       := doutTransfer;
@@ -435,6 +451,13 @@ begin
       v.rdIndex                  := r.rdIndex + 1;
     end if;
 
+    if (r.wrTransfer = '1' and
+        r.wrTransferAddr = v.rdIndex) then
+      v.rdenb := '0';
+    else
+      v.rdenb := '1';
+    end if;
+    
     v.remMaster.status.tReady := '0';
     if dscReadSlave.status.tValid = '1' then
       v.remMaster.status.tReady := '1';
@@ -475,12 +498,17 @@ begin
       end if;
     end if;
 
-    if mAxiRst = '1' then
+    rdenb          <= v.rdenb;
+    rdTransferAddr <= v.rdIndex;
+    
+    if axiRstQ(0) = '1' then
       v := REG_INIT_C;
     end if;
     
     rin <= v;
 
+    axiRstQ := mAxiRst & axiRstQ(2 downto 1);
+    
   end process comb;
 
   seq: process(mAxiClk) is

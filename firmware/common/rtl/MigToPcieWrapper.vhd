@@ -2,7 +2,7 @@
 -- File       : MigToPcieWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-03-06
+-- Last update: 2018-03-11
 -------------------------------------------------------------------------------
 -- Description: Receives transfer requests representing data buffers pending
 -- in local DRAM and moves data to CPU host memory over PCIe AXI interface.
@@ -34,7 +34,8 @@ entity MigToPcieWrapper is
    generic (  LANES_G          : integer          := 4;
               NAPP_G           : integer          := 1;
               AXIL_BASE_ADDR_G : slv(31 downto 0) := x"00000000";
-              AXI_ERROR_RESP_G : slv(1 downto 0)  := AXI_RESP_DECERR_C );
+              AXI_ERROR_RESP_G : slv(1 downto 0)  := AXI_RESP_DECERR_C;
+              DEBUG_G          : boolean          := true );
    port    ( -- Clock and reset
              axiClk           : in  sl; -- 200MHz
              axiRst           : in  sl; -- need a user reset to clear the pipeline
@@ -154,7 +155,7 @@ architecture mapping of MigToPcieWrapper is
   signal validRamAddr   : slv       (NAPP_C downto 0) := (others=>'0');
   signal doutRamAddr    : Slv64Array(NAPP_C downto 0) := (others=>(others=>'0'));
   signal doutWriteDesc  : Slv44Array(LANES_G-1 downto 0);
-  signal dcountWriteDesc: Slv4Array (LANES_G-1 downto 0);
+  signal dcountWriteDesc: Slv5Array (LANES_G-1 downto 0);
   signal rdWriteDesc    : slv       (LANES_G-1 downto 0);
   signal validWriteDesc : slv       (LANES_G-1 downto 0);
   signal fullWriteDesc  : slv       (LANES_G-1 downto 0);
@@ -171,7 +172,6 @@ architecture mapping of MigToPcieWrapper is
     fifoDin        : Slv64Array          (NAPP_C downto 0);
     wrRamAddr      : slv                 (NAPP_C downto 0);
     rdRamAddr      : slv                 (NAPP_C downto 0);
-    rdRamAddr_d    : slv                 (NAPP_C downto 0);
     wrDesc         : slv                 (LANES_G-1 downto 0);
     wrDescDin      : slv                 (43 downto 0);
     rdDesc         : slv                 (LANES_G-1 downto 0);
@@ -198,7 +198,7 @@ architecture mapping of MigToPcieWrapper is
     monSampleCnt   : slv                 (15 downto 0);
     monReadout     : sl;
     monReadoutCnt  : slv                 (19 downto 0);
-    usrRst         : slv                 ( 6 downto 0);
+    usrRst         : slv                 ( 9 downto 0);
     tlastd         : sl;
     framecnt       : slv(7 downto 0);
     framecnt_err   : sl;
@@ -211,7 +211,6 @@ architecture mapping of MigToPcieWrapper is
     fifoDin        => (others=>(others=>'0')),
     wrRamAddr      => (others=>'0'),
     rdRamAddr      => (others=>'0'),
-    rdRamAddr_d    => (others=>'0'),
     wrDesc         => (others=>'0'),
     wrDescDin      => (others=>'0'),
     rdDesc         => (others=>'0'),
@@ -237,7 +236,7 @@ architecture mapping of MigToPcieWrapper is
     monSampleCnt   => (others=>'0'),
     monReadout     => '0',
     monReadoutCnt  => (others=>'0'),
-    usrRst         => (others=>'1'),
+    usrRst         => "1111110000",
     tlastd         => '0',
     framecnt       => (others=>'0'),
     framecnt_err   => '0' );
@@ -265,7 +264,7 @@ architecture mapping of MigToPcieWrapper is
   signal s2mm_err         : slv(LANES_G-1 downto 0);
   signal mm2s_err         : slv(LANES_G-1 downto 0);
 
-  constant DEBUG_C : boolean := true;
+  constant DEBUG_C : boolean := DEBUG_G;
 
   component ila_0
     port ( clk : in sl;
@@ -582,6 +581,11 @@ begin
       for i in 0 to LANES_G-1 loop
         regAddr := toSlv(256+i*32,12);
         axiSlaveRegister(regCon, regAddr, 0, v.app(i));
+        if r.app(i) < NAPP_C then
+          v.migConfig(i).inhibit := '0';
+        else
+          v.migConfig(i).inhibit := '1';
+        end if;
         regAddr := regAddr + 4;
         axiSlaveRegister(regCon, regAddr, 0, v.migConfig(i).blockSize);
         regAddr := regAddr + 4;
@@ -613,7 +617,7 @@ begin
       sAxilReadSlave  <= r.axilReadSlave;
 
       if regRst = '1' then
-        v.usrRst := (others=>'1');
+        v.usrRst := REG_INIT_C.usrRst;
       else
         v.usrRst := '0' & r.usrRst(r.usrRst'left downto 1);
       end if;
@@ -669,26 +673,31 @@ begin
 
       --   Queue the write address to the data mover engine when a new
       --   transfer is waiting and a target buffer is available.
-      if (dscReadMasters(i).command.tValid = '1' and
-          v.writeMasters(i).tValid = '0' and
-          v.readMasters (i).tValid = '0' and
-          validRamAddr(app) = '1' and
-          fullWriteDesc(i)  = '0') then
-        v.readSlaves  (i).tReady := '1';
-        v.readMasters (i).tValid := '1';
-        v.writeMasters(i).tValid := '1';
-        v.readMasters (i).tData  := dscReadMasters(i).command.tData;
-        v.writeMasters(i).tData  := dscReadMasters(i).command.tData;
-        v.writeMasters(i).tData(79 downto 32) := x"0" & toSlv(app,4) &
-                                                 doutRamAddr(app)(39 downto 0);
-        v.rdRamAddr(app) := '1';
-        v.wrDescDin(43 downto 20) := '0' & dscReadMasters(i).command.tData(22 downto 0);
-        v.wrDescDin(19 downto  0) := doutRamAddr(app)(59 downto 40);
-        v.wrDesc   (i) := '1';
+      if (dscReadMasters(i).command.tValid = '1') then
+        --  Dump packets when no app is receiving
+        --  (but still assert FULL)
+        if (app = NAPP_C) then
+          v.readSlaves  (i).tReady := '1';
+        elsif (v.writeMasters(i).tValid = '0' and
+               v.readMasters (i).tValid = '0' and
+               validRamAddr(app) = '1' and
+               fullWriteDesc(i)  = '0') then
+          v.readSlaves  (i).tReady := '1';
+          v.readMasters (i).tValid := '1';
+          v.writeMasters(i).tValid := '1';
+          v.readMasters (i).tData  := dscReadMasters(i).command.tData;
+          v.writeMasters(i).tData  := dscReadMasters(i).command.tData;
+          v.writeMasters(i).tData(79 downto 32) := x"0" & toSlv(app,4) &
+                                                   doutRamAddr(app)(39 downto 0);
+          v.rdRamAddr(app) := '1';
+          v.wrDescDin(43 downto 20) := '0' & dscReadMasters(i).command.tData(22 downto 0);
+          v.wrDescDin(19 downto  0) := doutRamAddr(app)(59 downto 40);
+          v.wrDesc   (i) := '1';
 
-        if r.autoFill(app) = '1' then
-          v.fifoDin  (app) := doutRamAddr(app);
-          v.wrRamAddr(app) := '1';
+          if r.autoFill(app) = '1' then
+            v.fifoDin  (app) := doutRamAddr(app);
+            v.wrRamAddr(app) := '1';
+          end if;
         end if;
       end if;
 

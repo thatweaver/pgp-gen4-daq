@@ -2,7 +2,7 @@
 -- File       : PcieXbarV2Wrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2016-02-14
--- Last update: 2018-03-06
+-- Last update: 2018-03-11
 -------------------------------------------------------------------------------
 -- Description: AXI DMA Crossbar
 -------------------------------------------------------------------------------
@@ -300,13 +300,13 @@ architecture mapping of PcieXbarV2Wrapper is
     port ( clk     : in sl;
            probe0  : in slv(255 downto 0) );
   end component;
-  
+
 begin
 
   mAxiRstL        <= not(mAxiRst) and not(sAxiRstS);
   mAxiWriteMaster <= imAxiWriteMaster;
   mAxiReadMaster  <= imAxiReadMaster;
-
+  
   GEN_DEBUG : if DEBUG_C generate
    U_ILA_MAXI : ila_0
      port map ( clk                    => mAxiClk,
