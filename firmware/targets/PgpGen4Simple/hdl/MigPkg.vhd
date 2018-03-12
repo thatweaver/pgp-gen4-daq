@@ -28,13 +28,15 @@ package MigPkg is
    
    type MigConfigType is record
      blockSize   : slv(3 downto 0);
-     blocksPause : slv(BLOCK_INDEX_SIZE_C-1 downto 0); 
+     blocksPause : slv(BLOCK_INDEX_SIZE_C-1 downto 0);
+     inhibit     : sl;
    end record;
 
    -- Initialization constants
    constant MIG_CONFIG_INIT_C : MigConfigType := ( 
      blockSize   => toSlv(4,4),  -- 2MB
-     blocksPause => toSlv(32,BLOCK_INDEX_SIZE_C) );
+     blocksPause => toSlv(32,BLOCK_INDEX_SIZE_C),
+     inhibit     => '1' );
 
    -- Array
    type MigConfigArray is array (natural range<>) of MigConfigType;

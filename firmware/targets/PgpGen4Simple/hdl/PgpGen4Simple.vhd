@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-03-04
+-- Last update: 2018-03-10
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -173,15 +173,6 @@ architecture top_level of PgpGen4Simple is
    signal mAxilWriteMasters : AxiLiteWriteMasterArray(2*NUM_AXIL_MASTERS_C-1 downto 0);
    signal mAxilWriteSlaves  : AxiLiteWriteSlaveArray (2*NUM_AXIL_MASTERS_C-1 downto 0);
    constant AXIL_CROSSBAR_MASTERS_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig( NUM_AXIL_MASTERS_C, x"00800000", 23, 22);
-
-   constant axiStreamConfig : AxiStreamConfigType := (
-     TSTRB_EN_C    => false,
-     TDATA_BYTES_C => 8,
-     TDEST_BITS_C  => 0,
-     TID_BITS_C    => 0,
-     TKEEP_MODE_C  => TKEEP_NORMAL_C,
-     TUSER_BITS_C  => 0,
-     TUSER_MODE_C  => TUSER_NONE_C );
 
    signal migConfig : MigConfigArray(7 downto 0) := (others=>MIG_CONFIG_INIT_C);
    signal migStatus : MigStatusArray(7 downto 0);
@@ -426,8 +417,7 @@ begin
 
      GEN_HWDMA : for j in 4*i+0 to 4*i+3 generate
        U_HwDma : entity work.AppToMigWrapper
-         generic map ( AXI_STREAM_CONFIG_G => axiStreamConfig,
-                       AXI_BASE_ADDR_G     => (toSlv(j,1) & toSlv(0,31)),
+         generic map ( AXI_BASE_ADDR_G     => (toSlv(j,1) & toSlv(0,31)),
                        DEBUG_G             => (j<1) )
          port map ( sAxisClk        => hwClks         (j),
                     sAxisRst        => hwRsts         (j),
