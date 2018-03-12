@@ -2,7 +2,7 @@
 -- File       : AxiReadSlaveSim.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-02-23
+-- Last update: 2018-03-11
 -------------------------------------------------------------------------------
 -- Description: Wrapper for Xilinx Axi Data Mover
 -- Axi stream input (dscReadMasters.command) launches an AxiReadMaster to
@@ -94,8 +94,13 @@ begin
       v.rlen         := r.rlen;
       v.rword        := r.rword + 1;
       if r.rword = 0 then
+        v.slave.rdata := (others=>'1');
         v.slave.rdata(63 downto 0) := r.addr;
+        for i in 8 to conv_integer(r.rsize)-1 loop
+          v.slave.rdata(i*8+7 downto i*8) := toSlv(r.rword*conv_integer(r.rsize) + i,8);
+        end loop;
       else
+        v.slave.rdata := (others=>'0');
         for i in 0 to conv_integer(r.rsize)-1 loop
           v.slave.rdata(i*8+7 downto i*8) := toSlv(r.rword*conv_integer(r.rsize) + i,8);
         end loop;
