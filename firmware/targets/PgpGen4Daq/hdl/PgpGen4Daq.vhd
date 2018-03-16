@@ -2,7 +2,7 @@
 -- File       : PgpGen4NoRam.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-10-24
--- Last update: 2018-03-06
+-- Last update: 2018-03-11
 -------------------------------------------------------------------------------
 -- Description: 
 -------------------------------------------------------------------------------
@@ -77,10 +77,10 @@ entity PgpGen4Daq is
       flashHoldL   : out   sl;
       flashWp      : out   sl;
       -- DDR Ports
-      ddrClkP      : in    slv(3 downto 0);
-      ddrClkN      : in    slv(3 downto 0);
-      ddrOut       : out   DdrOutArray(3 downto 0);
-      ddrInOut     : inout DdrInOutArray(3 downto 0);
+      ddrClkP      : in    slv          (1 downto 0);
+      ddrClkN      : in    slv          (1 downto 0);
+      ddrOut       : out   DdrOutArray  (1 downto 0);
+      ddrInOut     : inout DdrInOutArray(1 downto 0);
       -- PCIe Ports
       pciRstL      : in    sl;
       pciRefClkP   : in    sl;
@@ -174,15 +174,6 @@ architecture top_level of PgpGen4Daq is
    signal mAxilWriteSlaves  : AxiLiteWriteSlaveArray (2*NUM_AXIL_MASTERS_C-1 downto 0);
    constant AXIL_CROSSBAR_MASTERS_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig( NUM_AXIL_MASTERS_C, x"00800000", 23, 22);
 
-   constant axiStreamConfig : AxiStreamConfigType := (
-     TSTRB_EN_C    => true,
-     TDATA_BYTES_C => 8,
-     TDEST_BITS_C  => 0,
-     TID_BITS_C    => 0,
-     TKEEP_MODE_C  => TKEEP_NORMAL_C,
-     TUSER_BITS_C  => 0,
-     TUSER_MODE_C  => TUSER_NONE_C );
-
    signal migConfig : MigConfigArray(7 downto 0) := (others=>MIG_CONFIG_INIT_C);
    signal migStatus : MigStatusArray(7 downto 0);
    
@@ -194,6 +185,8 @@ architecture top_level of PgpGen4Daq is
    signal mmcmClkOut : Slv2Array(1 downto 0);
    signal mmcmRstOut : Slv2Array(1 downto 0);
 
+   constant ALL_LANES_C : boolean := true;
+   
 begin
 
   qsfpRefClkP(0) <= qsfp0RefClkP;
@@ -426,9 +419,8 @@ begin
 
      GEN_HWDMA : for j in 4*i+0 to 4*i+3 generate
        U_HwDma : entity work.AppToMigWrapper
-         generic map ( AXI_STREAM_CONFIG_G => axiStreamConfig,
-                       AXI_BASE_ADDR_G     => (toSlv(j,2) & toSlv(0,30)) )
---                       DEBUG_G             => (j mod 4) = 0 )
+         generic map ( AXI_BASE_ADDR_G     => (toSlv(j,2) & toSlv(0,30)) )
+--                       DEBUG_G             => (j<1) )
          port map ( sAxisClk        => hwClks         (j),
                     sAxisRst        => hwRsts         (j),
                     sAxisMaster     => hwIbMasters    (j),
@@ -449,6 +441,7 @@ begin
      U_Mig2Pcie : entity work.MigToPcieWrapper
        generic map ( NAPP_G           => 1,
                      AXIL_BASE_ADDR_G => x"00800000" )
+--                     DEBUG_G          => (i<1) )
        port map ( axiClk         => clk200(i),
                   axiRst         => rst200(i),
                   usrRst         => userReset(i),
@@ -469,35 +462,74 @@ begin
 
      end generate;
 
-   U_MIG0 : entity work.MigA
-    port map ( axiReady        => memReady(0),
-               --
-               axiClk          => clk200         (0),
-               axiRst          => urst200        (0),
-               axiWriteMasters => memWriteMasters(3 downto 0),
-               axiWriteSlaves  => memWriteSlaves (3 downto 0),
-               axiReadMasters  => memReadMasters (3 downto 0),
-               axiReadSlaves   => memReadSlaves  (3 downto 0),
-               --
-               ddrClkP         => ddrClkP (0),
-               ddrClkN         => ddrClkN (0),
-               ddrOut          => ddrOut  (0),
-               ddrInOut        => ddrInOut(0) );
+     GEN_ALL_MIG : if ALL_LANES_C generate
+       U_MIG0 : entity work.MigA
+         port map ( axiReady        => memReady(0),
+                    --
+                    axiClk          => clk200         (0),
+                    axiRst          => urst200        (0),
+                    axiWriteMasters => memWriteMasters(3 downto 0),
+                    axiWriteSlaves  => memWriteSlaves (3 downto 0),
+                    axiReadMasters  => memReadMasters (3 downto 0),
+                    axiReadSlaves   => memReadSlaves  (3 downto 0),
+                    --
+                    ddrClkP         => ddrClkP (0),
+                    ddrClkN         => ddrClkN (0),
+                    ddrOut          => ddrOut  (0),
+                    ddrInOut        => ddrInOut(0) );
 
-  U_MIG1 : entity work.MigB
-    port map ( axiReady        => memReady(1),
-               --
-               axiClk          => clk200         (1),
-               axiRst          => urst200        (1),
-               axiWriteMasters => memWriteMasters(7 downto 4),
-               axiWriteSlaves  => memWriteSlaves (7 downto 4),
-               axiReadMasters  => memReadMasters (7 downto 4),
-               axiReadSlaves   => memReadSlaves  (7 downto 4),
-               --
-               ddrClkP         => ddrClkP (1),
-               ddrClkN         => ddrClkN (1),
-               ddrOut          => ddrOut  (1),
-               ddrInOut        => ddrInOut(1) );
+       U_MIG1 : entity work.MigB
+         port map ( axiReady        => memReady(1),
+                    --
+                    axiClk          => clk200         (1),
+                    axiRst          => urst200        (1),
+                    axiWriteMasters => memWriteMasters(7 downto 4),
+                    axiWriteSlaves  => memWriteSlaves (7 downto 4),
+                    axiReadMasters  => memReadMasters (7 downto 4),
+                    axiReadSlaves   => memReadSlaves  (7 downto 4),
+                    --
+                    ddrClkP         => ddrClkP (1),
+                    ddrClkN         => ddrClkN (1),
+                    ddrOut          => ddrOut  (1),
+                    ddrInOut        => ddrInOut(1) );
+     end generate;
+
+     GEN_HALF_LANES : if not ALL_LANES_C generate
+       U_MIG0 : entity work.Mig0
+         port map ( axiReady        => memReady(0),
+                    --
+                    axiClk          => clk200         (0),
+                    axiRst          => urst200        (0),
+                    axiWriteMasters => memWriteMasters(1 downto 0),
+                    axiWriteSlaves  => memWriteSlaves (1 downto 0),
+                    axiReadMasters  => memReadMasters (1 downto 0),
+                    axiReadSlaves   => memReadSlaves  (1 downto 0),
+                    --
+                    ddrClkP         => ddrClkP (0),
+                    ddrClkN         => ddrClkN (0),
+                    ddrOut          => ddrOut  (0),
+                    ddrInOut        => ddrInOut(0) );
+
+       U_MIG1 : entity work.Mig1
+         port map ( axiReady        => memReady(1),
+                    --
+                    axiClk          => clk200         (1),
+                    axiRst          => urst200        (1),
+                    axiWriteMasters => memWriteMasters(5 downto 4),
+                    axiWriteSlaves  => memWriteSlaves (5 downto 4),
+                    axiReadMasters  => memReadMasters (5 downto 4),
+                    axiReadSlaves   => memReadSlaves  (5 downto 4),
+                    --
+                    ddrClkP         => ddrClkP (1),
+                    ddrClkN         => ddrClkN (1),
+                    ddrOut          => ddrOut  (1),
+                    ddrInOut        => ddrInOut(1) );
+       
+       memWriteSlaves(3 downto 2) <= (others=>AXI_WRITE_SLAVE_INIT_C);
+       memWriteSlaves(7 downto 6) <= (others=>AXI_WRITE_SLAVE_INIT_C);
+       memReadSlaves (3 downto 2) <= (others=>AXI_READ_SLAVE_INIT_C);
+       memReadSlaves (7 downto 6) <= (others=>AXI_READ_SLAVE_INIT_C);
+   end generate;
   
    -- Unused user signals
    userLed <= (others => '0');

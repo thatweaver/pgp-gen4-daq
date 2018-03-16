@@ -2,7 +2,7 @@
 -- File       : AppToMigWrapper.vhd
 -- Company    : SLAC National Accelerator Laboratory
 -- Created    : 2017-03-06
--- Last update: 2018-03-11
+-- Last update: 2018-03-13
 -------------------------------------------------------------------------------
 -- Description: Wrapper for Xilinx Axi Data Mover
 -- Axi stream input (dscReadMasters.command) launches an AxiReadMaster to
@@ -366,13 +366,14 @@ begin
     v := r;
 
     v.locMaster.command.tLast  := '1'; -- always a single word
+    v.locMaster.status.tReady  := '0';
     v.wrTransfer               := '0';
     
     i := BLOCK_BASE_SIZE_C;
     
     --
-    --  Keep stuffing new block addresses into the Axi engine
-    --
+    --  Stuff a new block address into the Axi engine
+    --    on the first transfer of a new frame
     if (mAxisMaster.tValid = '1' and
         mAxisSlave.tReady  = '1') then
       if r.tlast = '1' then
@@ -386,9 +387,7 @@ begin
     end if;
 
     itag := conv_integer(r.wrIndex(3 downto 0));
-    if (v.locMaster.command.tValid = '0' and
-        r.wrTag(itag) = IDLE_T and
-        r.recvdQueCnt /= 0) then
+    if (v.locMaster.command.tValid = '0') then
       waddr   := resize(r.wrIndex & toSlv(0,i), 32) + AXI_BASE_ADDR_G;
       wlen    := (others=>'0');
       wlen(i) := '1';
@@ -398,19 +397,14 @@ begin
         waddr &                  -- address[31:0]
         "01" & toSlv(0,6) &      -- EOF command
         '1' & wlen;              -- max write length
-      v.wrIndex := r.wrIndex + 1;
-      if r.wrIndex + 16 = r.rdIndex then  -- prevent overwrite
-        v.wrIndex := r.wrIndex;
-      else
+      if (r.wrTag(itag) = IDLE_T and
+          r.recvdQueCnt /= 0 and
+          r.wrIndex + 16 /= r.rdIndex) then  -- prevent overwrite
+        v.wrIndex                  := r.wrIndex + 1;
         v.recvdQueCnt              := v.recvdQueCnt - 1;
         v.wrTag(itag)              := REQUESTED_T;
         v.locMaster.command.tValid := '1';
       end if;
-    end if;
-
-    --  Must hold to one clock edge
-    if r.locMaster.status.tReady = '1' then
-      v.locMaster.status.tReady := '0';
     end if;
 
     stag := intDscWriteSlave.status.tData(3 downto 0);
